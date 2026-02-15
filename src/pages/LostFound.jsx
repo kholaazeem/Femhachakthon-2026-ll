@@ -7,71 +7,100 @@ const LostFound = () => {
   const navigate = useNavigate();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [filter, setFilter] = useState('All'); // Filter ke liye state
+  const [filter, setFilter] = useState('All');
+  
+  // NEW: Search State
+  const [searchTerm, setSearchTerm] = useState('');
 
   // Form States
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [type, setType] = useState('Lost'); // Default 'Lost'
+  const [type, setType] = useState('Lost');
   const [contact, setContact] = useState('');
+  const [imageFile, setImageFile] = useState(null);
 
-  // --- 1. Data Fetch Karna (Read) ---
+  // --- 1. Fetch Data ---
   const fetchItems = async () => {
     let query = supabase
       .from('lost_found_items')
       .select('*')
       .order('created_at', { ascending: false });
 
-    // Agar filter All nahi hai to filter lagao
     if (filter !== 'All') {
       query = query.eq('type', filter);
     }
 
     const { data, error } = await query;
-    if (error) console.log('Error:', error);
+    if (error) console.log('Error fetching data:', error);
     else setItems(data);
   };
 
   useEffect(() => {
     fetchItems();
-  }, [filter]); // Jab filter change ho to dobara fetch karo
+  }, [filter]);
 
-  // --- 2. Data Submit Karna (Create) ---
+  // --- 2. Upload Image ---
+  const uploadImage = async (file) => {
+    const fileName = `${Date.now()}-${file.name}`;
+    const { data, error } = await supabase.storage
+      .from('images') 
+      .upload(fileName, file);
+
+    if (error) return null;
+
+    const { data: publicUrlData } = supabase.storage
+      .from('images')
+      .getPublicUrl(fileName);
+
+    return publicUrlData.publicUrl;
+  };
+
+  // --- 3. Submit Data ---
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
 
-    // Current User ka email lena
-    const { data: { user } } = await supabase.auth.getUser();
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
 
-    const { error } = await supabase.from('lost_found_items').insert([{
-      title,
-      description,
-      type,
-      contact,
-      status: 'Pending',
-      user_email: user.email
-    }]);
+      let uploadedImageUrl = '';
+      if (imageFile) {
+        uploadedImageUrl = await uploadImage(imageFile);
+        if (!uploadedImageUrl) throw new Error("Image upload failed");
+      }
 
-    setLoading(false);
+      const { error } = await supabase.from('lost_found_items').insert([{
+        title,
+        description,
+        type,
+        contact,
+        status: 'Pending',
+        user_email: user.email,
+        image_url: uploadedImageUrl 
+      }]);
 
-    if (error) {
-      Swal.fire('Error', error.message, 'error');
-    } else {
+      if (error) throw error;
+
       Swal.fire({
         icon: 'success',
-        title: 'Item Posted!',
-        confirmButtonColor: '#66b032' // Saylani Green
+        title: 'Item Posted Successfully!',
+        confirmButtonColor: '#66b032'
       });
-      // Form Clear
+
       setTitle('');
       setDescription('');
       setContact('');
-      fetchItems(); // List Update
+      setImageFile(null);
+      fetchItems();
+
+    } catch (error) {
+      Swal.fire('Error', error.message, 'error');
+    } finally {
+      setLoading(false);
     }
   };
 
-  // --- 3. Status Update (Mark as Recovered) ---
+  // --- 4. Mark as Recovered ---
   const markAsFound = async (id) => {
     const { error } = await supabase
       .from('lost_found_items')
@@ -79,25 +108,14 @@ const LostFound = () => {
       .eq('id', id);
 
     if (!error) {
-      Swal.fire({
-        icon: 'success',
-        title: 'Status Updated!',
-        showConfirmButton: false,
-        timer: 1000
-      });
+      Swal.fire({ icon: 'success', title: 'Status Updated!', showConfirmButton: false, timer: 1000 });
       fetchItems();
     }
   };
 
   return (
     <div className="container mt-4 mb-5">
-      {/* Header */}
-      <div className="d-flex justify-content-between align-items-center mb-4">
-        <h2 className="fw-bold" style={{ color: '#0057a8' }}>Lost & Found Items</h2>
-        <button className="btn btn-outline-secondary" onClick={() => navigate('/')}>
-          Back to Dashboard
-        </button>
-      </div>
+      <h2 className="fw-bold mb-4" style={{ color: '#0057a8' }}>Lost & Found Items</h2>
 
       {/* --- Form Section --- */}
       <div className="card shadow-sm border-0 mb-5" style={{ backgroundColor: '#f0f5fa' }}>
@@ -106,38 +124,22 @@ const LostFound = () => {
           <form onSubmit={handleSubmit}>
             <div className="row g-3">
               <div className="col-md-6">
-                <input 
-                  className="form-control" 
-                  placeholder="Item Name (e.g. Black Wallet)" 
-                  value={title} 
-                  onChange={(e) => setTitle(e.target.value)} 
-                  required 
-                />
+                <input className="form-control" placeholder="Item Name (e.g. Wallet)" value={title} onChange={(e) => setTitle(e.target.value)} required />
               </div>
               <div className="col-md-3">
                 <select className="form-select" value={type} onChange={(e) => setType(e.target.value)}>
-                  <option value="Lost">Lost (Gumshuda)</option>
-                  <option value="Found">Found (Mila hai)</option>
+                  <option value="Lost">Lost</option>
+                  <option value="Found">Found</option>
                 </select>
               </div>
               <div className="col-md-3">
-                <input 
-                  className="form-control" 
-                  placeholder="Contact No." 
-                  value={contact} 
-                  onChange={(e) => setContact(e.target.value)} 
-                  required 
-                />
+                <input className="form-control" placeholder="Contact No." value={contact} onChange={(e) => setContact(e.target.value)} required />
               </div>
               <div className="col-12">
-                <textarea 
-                  className="form-control" 
-                  rows="2" 
-                  placeholder="Description (Location, Time, details...)" 
-                  value={description} 
-                  onChange={(e) => setDescription(e.target.value)} 
-                  required 
-                ></textarea>
+                <input type="file" className="form-control" accept="image/*" onChange={(e) => setImageFile(e.target.files[0])} />
+              </div>
+              <div className="col-12">
+                <textarea className="form-control" rows="2" placeholder="Description..." value={description} onChange={(e) => setDescription(e.target.value)} required ></textarea>
               </div>
               <div className="col-12">
                 <button type="submit" className="btn text-white w-100 fw-bold" disabled={loading} style={{ backgroundColor: '#0057a8' }}>
@@ -149,44 +151,54 @@ const LostFound = () => {
         </div>
       </div>
 
-      {/* --- Filter Tabs --- */}
-      <div className="btn-group mb-4">
-        <button className={`btn ${filter === 'All' ? 'btn-primary' : 'btn-outline-primary'}`} onClick={() => setFilter('All')}>All</button>
-        <button className={`btn ${filter === 'Lost' ? 'btn-danger' : 'btn-outline-danger'}`} onClick={() => setFilter('Lost')}>Lost Items</button>
-        <button className={`btn ${filter === 'Found' ? 'btn-success' : 'btn-outline-success'}`} onClick={() => setFilter('Found')}>Found Items</button>
+      {/* --- Filter & Search Bar (NEW) --- */}
+      <div className="d-flex flex-column flex-md-row justify-content-between align-items-center mb-4 gap-3">
+        <div className="btn-group">
+          <button className={`btn ${filter === 'All' ? 'btn-primary' : 'btn-outline-primary'}`} onClick={() => setFilter('All')}>All</button>
+          <button className={`btn ${filter === 'Lost' ? 'btn-danger' : 'btn-outline-danger'}`} onClick={() => setFilter('Lost')}>Lost</button>
+          <button className={`btn ${filter === 'Found' ? 'btn-success' : 'btn-outline-success'}`} onClick={() => setFilter('Found')}>Found</button>
+        </div>
+        
+        {/* Search Input */}
+        <input 
+          type="text" 
+          className="form-control w-50" 
+          placeholder="Search items by name..." 
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+        />
       </div>
 
-      {/* --- Items List --- */}
+      {/* --- Items List with Filter Logic --- */}
       <div className="row">
-        {items.map((item) => (
+        {items
+          .filter((item) => {
+            if (searchTerm === "") return item;
+            return item.title.toLowerCase().includes(searchTerm.toLowerCase());
+          })
+          .map((item) => (
           <div className="col-md-4 mb-4" key={item.id}>
             <div className={`card h-100 shadow-sm border-0 ${item.status === 'Recovered' ? 'opacity-50' : ''}`}>
+              
+              {item.image_url ? (
+                <img src={item.image_url} className="card-img-top" alt={item.title} style={{ height: '200px', objectFit: 'cover' }} />
+              ) : (
+                <div className="d-flex align-items-center justify-content-center bg-light" style={{ height: '200px' }}><span className="text-muted">No Image</span></div>
+              )}
+
               <div className="card-body">
                 <div className="d-flex justify-content-between mb-2">
                   <span className={`badge ${item.type === 'Lost' ? 'bg-danger' : 'bg-success'}`}>{item.type}</span>
                   <small className="text-muted">{new Date(item.created_at).toLocaleDateString()}</small>
                 </div>
-                
                 <h5 className="card-title fw-bold text-dark">{item.title}</h5>
                 <p className="card-text text-secondary small">{item.description}</p>
-                <p className="card-text fw-bold text-dark mb-1">
-                  <i className="bi bi-telephone me-2"></i>{item.contact}
-                </p>
-                
+                <p className="card-text fw-bold text-dark mb-1"><i className="bi bi-telephone me-2"></i>{item.contact}</p>
                 <hr />
                 <div className="d-flex justify-content-between align-items-center">
-                  <span className={`badge ${item.status === 'Pending' ? 'bg-warning text-dark' : 'bg-secondary'}`}>
-                    {item.status}
-                  </span>
-                  
-                  {/* Mark as Found Button (Only if Pending) */}
+                  <span className={`badge ${item.status === 'Pending' ? 'bg-warning text-dark' : 'bg-secondary'}`}>{item.status}</span>
                   {item.status === 'Pending' && (
-                    <button 
-                      className="btn btn-sm btn-outline-success" 
-                      onClick={() => markAsFound(item.id)}
-                    >
-                      Mark as Recovered
-                    </button>
+                    <button className="btn btn-sm btn-outline-success" onClick={() => markAsFound(item.id)}>Mark as Recovered</button>
                   )}
                 </div>
               </div>

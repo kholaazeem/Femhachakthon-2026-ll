@@ -5,7 +5,8 @@ import Auth from './pages/Auth';
 import LostFound from './pages/LostFound'; 
 import Complaints from './pages/Complaints'; 
 import Volunteers from './pages/Volunteers'; 
-import Navbar from './components/Navbar'; // Navbar Import kiya
+import Admin from './pages/Admin'; // 1. Admin Page Import kiya
+import Navbar from './components/Navbar'; 
 
 function App() {
   const [session, setSession] = useState(null);
@@ -91,7 +92,6 @@ function App() {
                 </div>
 
               </div>
-              {/* Logout button removed because it is now in Navbar */}
             </div>
           ) : <Navigate to="/auth" />} 
         />
@@ -110,6 +110,12 @@ function App() {
         <Route 
           path="/volunteers" 
           element={session ? <Volunteers /> : <Navigate to="/auth" />} 
+        />
+
+        {/* 2. Admin Route Added Here */}
+        <Route 
+          path="/admin" 
+          element={session ? <Admin /> : <Navigate to="/auth" />} 
         />
 
         {/* Default Redirect */}
