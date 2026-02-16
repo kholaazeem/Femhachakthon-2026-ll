@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { supabase } from '../config/supabaseClient';
-import Swal from 'sweetalert2'; // Import SweetAlert
-
+import Swal from 'sweetalert2'; 
 
 const Auth = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -12,6 +11,20 @@ const Auth = () => {
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
+  
+  // NEW: Profile Pic & Password Eye States
+  const [profilePic, setProfilePic] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const [showPassword, setShowPassword] = useState(false);
+
+  // Handle Image Selection
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setProfilePic(file);
+      setPreviewUrl(URL.createObjectURL(file));
+    }
+  };
 
   const handleAuth = async (e) => {
     e.preventDefault();
@@ -19,21 +32,41 @@ const Auth = () => {
 
     try {
       if (isLogin) {
-        // LOGIN LOGIC
+        // --- LOGIN LOGIC ---
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
         
-        // Success Alert
         Swal.fire({
           icon: 'success',
           title: 'Welcome Back!',
           text: 'Login Successful',
-          confirmButtonColor: '#66b032', // Saylani Green
+          confirmButtonColor: '#66b032',
           timer: 1500
         });
 
       } else {
-        // SIGNUP LOGIC
+        // --- SIGNUP LOGIC ---
+        
+        let avatarUrl = null;
+
+        // 1. Upload Image if selected
+        if (profilePic) {
+          const fileName = `${Date.now()}-${profilePic.name}`;
+          const { error: uploadError } = await supabase.storage
+            .from('profile-pics') // Make sure this bucket exists in Supabase
+            .upload(fileName, profilePic);
+
+          if (uploadError) throw uploadError;
+
+          // Get Public URL
+          const { data } = supabase.storage
+            .from('profile-pics')
+            .getPublicUrl(fileName);
+            
+          avatarUrl = data.publicUrl;
+        }
+
+        // 2. Register User with Metadata (Image URL included)
         const { error } = await supabase.auth.signUp({
           email,
           password,
@@ -41,21 +74,20 @@ const Auth = () => {
             data: {
               full_name: fullName,
               phone: phone,
+              avatar_url: avatarUrl, // Saving Image URL
             },
           },
         });
         if (error) throw error;
 
-        // Success Alert
         Swal.fire({
           icon: 'success',
           title: 'Account Created!',
           text: 'Please check your email for confirmation link.',
-          confirmButtonColor: '#0057a8' // Saylani Blue
+          confirmButtonColor: '#0057a8'
         });
       }
     } catch (error) {
-      // Error Alert
       Swal.fire({
         icon: 'error',
         title: 'Oops...',
@@ -74,7 +106,7 @@ const Auth = () => {
       <div className="card shadow-lg border-0 rounded-4" style={{ width: '450px' }}>
         <div className="card-body p-5">
           
-          <div className="text-center mb-5">
+          <div className="text-center mb-4">
             <h2 className="fw-bold mb-2" style={{ color: '#0057a8' }}>
               {isLogin ? 'Welcome Back!' : 'Join the Community'}
             </h2>
@@ -84,6 +116,32 @@ const Auth = () => {
           <form onSubmit={handleAuth}>
             {!isLogin && (
               <>
+                {/* --- Profile Pic Upload Section --- */}
+                <div className="text-center mb-4">
+                  <div className="position-relative d-inline-block">
+                    <div 
+                      className="rounded-circle border border-2 border-primary d-flex align-items-center justify-content-center overflow-hidden bg-light"
+                      style={{ width: '100px', height: '100px', cursor: 'pointer' }}
+                      onClick={() => document.getElementById('fileInput').click()}
+                    >
+                      {previewUrl ? (
+                        <img src={previewUrl} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ) : (
+                        <span className="text-muted small">Upload<br/>Photo</span>
+                      )}
+                    </div>
+                    {/* Hidden Input */}
+                    <input 
+                      type="file" 
+                      id="fileInput"
+                      accept="image/*"
+                      className="d-none"
+                      onChange={handleImageChange}
+                    />
+                  </div>
+                  <div className="small text-muted mt-1">Tap circle to upload</div>
+                </div>
+
                 <div className="form-floating mb-3">
                   <input 
                     type="text" 
@@ -125,17 +183,41 @@ const Auth = () => {
               <label htmlFor="floatingEmail">Email Address</label>
             </div>
 
-            <div className="form-floating mb-4">
-              <input 
-                type="password" 
-                className="form-control" 
-                id="floatingPassword" 
-                placeholder="Password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required 
-              />
-              <label htmlFor="floatingPassword">Password</label>
+            {/* --- Password Field with Eye Icon --- */}
+            <div className="input-group mb-4">
+              <div className="form-floating flex-grow-1">
+                <input 
+                  type={showPassword ? "text" : "password"} 
+                  className="form-control" 
+                  id="floatingPassword" 
+                  placeholder="Password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required 
+                  style={{ borderTopRightRadius: 0, borderBottomRightRadius: 0 }}
+                />
+                <label htmlFor="floatingPassword">Password</label>
+              </div>
+              <span 
+                className="input-group-text bg-white" 
+                style={{ cursor: 'pointer', borderLeft: 'none' }}
+                onClick={() => setShowPassword(!showPassword)}
+              >
+                {showPassword ? (
+                  // Eye Slash Icon (Text dikh raha hai)
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" className="bi bi-eye-slash" viewBox="0 0 16 16">
+                    <path d="M13.359 11.238C15.06 9.72 16 8 16 8s-3-5.5-8-5.5a7.028 7.028 0 0 0-2.79.588l.77.771A5.944 5.944 0 0 1 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13.134 13.134 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755-.165.165-.337.328-.517.486l.708.709z"/>
+                    <path d="M11.297 9.176a3.5 3.5 0 0 0-4.474-4.474l.823.823a2.5 2.5 0 0 1 2.829 2.829l.822.822zm-2.943 1.299.822.822a3.5 3.5 0 0 1-4.474-4.474l.823.823a2.5 2.5 0 0 0 2.829 2.829z"/>
+                    <path d="M3.35 5.47c-.18.16-.353.322-.518.487A13.134 13.134 0 0 0 1.172 8l.195.288c.335.48.83 1.12 1.465 1.755C4.121 11.332 5.881 12.5 8 12.5c.716 0 1.39-.133 2.02-.36l.77.772A7.029 7.029 0 0 1 8 13.5C3 13.5 0 8 0 8s.939-1.721 2.641-3.238l.708.709zm10.296 8.884-12-12 .708-.708 12 12-.708.708z"/>
+                  </svg>
+                ) : (
+                  // Eye Icon (Text chupa hua hai)
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" className="bi bi-eye" viewBox="0 0 16 16">
+                    <path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM1.173 8a13.133 13.133 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13.133 13.133 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12.5 8 12.5c-2.12 0-3.879-1.168-5.168-2.457A13.134 13.134 0 0 1 1.172 8z"/>
+                    <path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM4.5 8a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0z"/>
+                  </svg>
+                )}
+              </span>
             </div>
             
             <button 
@@ -165,6 +247,8 @@ const Auth = () => {
                   setIsLogin(!isLogin);
                   setFullName('');
                   setPhone('');
+                  setProfilePic(null);
+                  setPreviewUrl(null);
                 }}
               >
                 {isLogin ? "Sign Up" : "Login"}
