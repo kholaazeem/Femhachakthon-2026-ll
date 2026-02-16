@@ -5,15 +5,22 @@ import Auth from './pages/Auth';
 import LostFound from './pages/LostFound'; 
 import Complaints from './pages/Complaints'; 
 import Volunteers from './pages/Volunteers'; 
-import Admin from './pages/Admin'; // 1. Admin Page Import kiya
+import Admin from './pages/Admin'; 
+import Landing from './pages/Landing'; // 1. Landing Page Import kiya
 import Navbar from './components/Navbar'; 
+import Profile from './pages/Profile'; // Import
 
 function App() {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
+  
+  // Notices State (Announcement ke liye)
+  const [latestNotice, setLatestNotice] = useState(null);
+  
   const navigate = useNavigate();
 
   useEffect(() => {
+    // 1. Check Session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setLoading(false);
@@ -22,9 +29,25 @@ function App() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
     });
+    
+    // 2. Fetch Latest Notice
+    fetchNotice();
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // Notice Fetch Karne Ka Function
+  const fetchNotice = async () => {
+    const { data } = await supabase
+      .from('announcements')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(1);
+      
+    if (data && data.length > 0) {
+      setLatestNotice(data[0]);
+    }
+  };
 
   if (loading) {
     return <div className="p-5 text-center">Loading...</div>;
@@ -35,6 +58,13 @@ function App() {
       {/* Agar user login hai, toh Navbar dikhao */}
       {session && <Navbar />}
 
+      {/* --- NOTICE BOARD BANNER --- */}
+      {session && latestNotice && (
+        <div className="bg-warning text-dark py-2 px-3 fw-bold text-center border-bottom border-dark">
+          📢 LATEST NEWS: <span className="ms-2">{latestNotice.title}: {latestNotice.message}</span>
+        </div>
+      )}
+
       <Routes>
         {/* Auth Route */}
         <Route 
@@ -42,10 +72,11 @@ function App() {
           element={!session ? <Auth /> : <Navigate to="/" />} 
         />
 
-        {/* Dashboard Route */}
+        {/* --- MAIN DASHBOARD / LANDING ROUTE --- */}
         <Route 
           path="/" 
           element={session ? (
+            // Agar Login hai toh Dashboard dikhao
             <div className="container mt-4">
               <h1 className="fw-bold text-center mb-2" style={{ color: '#0057a8' }}>Saylani Mass IT Hub</h1>
               <p className="text-center text-muted mb-5">Welcome, {session.user.email}</p>
@@ -93,7 +124,10 @@ function App() {
 
               </div>
             </div>
-          ) : <Navigate to="/auth" />} 
+          ) : (
+            // Agar Login NAHI hai toh Landing Page dikhao
+            <Landing /> 
+          )} 
         />
         
         {/* Module Routes */}
@@ -112,14 +146,16 @@ function App() {
           element={session ? <Volunteers /> : <Navigate to="/auth" />} 
         />
 
-        {/* 2. Admin Route Added Here */}
+        {/* Admin Route */}
         <Route 
           path="/admin" 
           element={session ? <Admin /> : <Navigate to="/auth" />} 
         />
 
+        <Route path="/profile" element={session ? <Profile /> : <Navigate to="/auth" />} />
+
         {/* Default Redirect */}
-        <Route path="*" element={<Navigate to={session ? "/" : "/auth"} />} />
+        <Route path="*" element={<Navigate to={session ? "/" : "/"} />} />
       </Routes>
     </>
   );

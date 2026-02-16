@@ -1,17 +1,16 @@
-import React, { useState, useEffect } from 'react'; // 1. useState, useEffect import kiya
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../config/supabaseClient';
 
 const Navbar = () => {
   const navigate = useNavigate();
-  const location = useLocation();
-  const [isAdmin, setIsAdmin] = useState(false); // 2. Admin State
+  const location = useLocation(); // Current page pata lagane ke liye
+  const [isAdmin, setIsAdmin] = useState(false); // Admin State
 
-  // 3. Admin Check Logic
+  // Admin Check Logic
   useEffect(() => {
     const checkUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      // Yahan apna Admin Email likhein
       if (user?.email === 'admin@gmail.com') { 
         setIsAdmin(true);
       }
@@ -21,9 +20,10 @@ const Navbar = () => {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    navigate('/auth');
+    navigate('/'); // Logout ke baad Landing Page par bhej dega
   };
 
+  // Helper function to check active link
   const isActive = (path) => location.pathname === path;
 
   return (
@@ -31,6 +31,7 @@ const Navbar = () => {
          style={{ background: 'linear-gradient(90deg, #0057a8 0%, #004080 100%)' }}>
       
       <div className="container">
+        {/* Brand Logo / Name */}
         <Link className="navbar-brand d-flex align-items-center fw-bold fs-4" to="/">
           <span style={{ color: '#66b032' }} className="me-2">⚡</span> 
           Saylani IT Hub
@@ -48,6 +49,7 @@ const Navbar = () => {
         <div className="collapse navbar-collapse" id="navbarNav">
           <ul className="navbar-nav ms-auto align-items-center gap-lg-3">
             
+            {/* Dashboard Link */}
             <li className="nav-item">
               <Link 
                 className={`nav-link ${isActive('/') ? 'active fw-bold text-white border-bottom border-2 border-success' : 'text-white-50'}`} 
@@ -57,6 +59,7 @@ const Navbar = () => {
               </Link>
             </li>
 
+            {/* Lost & Found Link */}
             <li className="nav-item">
               <Link 
                 className={`nav-link ${isActive('/lost-found') ? 'active fw-bold text-white border-bottom border-2 border-success' : 'text-white-50'}`} 
@@ -66,6 +69,7 @@ const Navbar = () => {
               </Link>
             </li>
 
+            {/* Complaints Link */}
             <li className="nav-item">
               <Link 
                 className={`nav-link ${isActive('/complaints') ? 'active fw-bold text-white border-bottom border-2 border-success' : 'text-white-50'}`} 
@@ -75,6 +79,7 @@ const Navbar = () => {
               </Link>
             </li>
 
+            {/* Volunteers Link */}
             <li className="nav-item">
               <Link 
                 className={`nav-link ${isActive('/volunteers') ? 'active fw-bold text-white border-bottom border-2 border-success' : 'text-white-50'}`} 
@@ -84,7 +89,18 @@ const Navbar = () => {
               </Link>
             </li>
 
-            {/* 4. Sirf Admin ko ye Link nazar aayega */}
+            {/* --- NEW: MY ID CARD LINK --- */}
+            <li className="nav-item">
+              <Link 
+                className={`nav-link ${isActive('/profile') ? 'active fw-bold text-white border-bottom border-2 border-success' : 'text-white-50'}`} 
+                to="/profile"
+              >
+                My ID Card
+              </Link>
+            </li>
+            {/* --------------------------- */}
+
+            {/* Sirf Admin ko ye Link nazar aayega */}
             {isAdmin && (
               <li className="nav-item">
                 <Link 
@@ -96,6 +112,7 @@ const Navbar = () => {
               </li>
             )}
 
+            {/* Logout Button */}
             <li className="nav-item ms-lg-2 mt-2 mt-lg-0">
               <button 
                 className="btn text-white fw-bold px-4 rounded-pill shadow-sm" 

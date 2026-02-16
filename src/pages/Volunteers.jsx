@@ -7,6 +7,7 @@ const Volunteers = () => {
   const navigate = useNavigate();
   const [volunteers, setVolunteers] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false); // Admin check karne ke liye state
 
   // Form States
   const [name, setName] = useState('');
@@ -14,15 +15,30 @@ const Volunteers = () => {
   const [event, setEvent] = useState('Tech Hackathon');
   const [availability, setAvailability] = useState('Morning Shift');
 
-  // --- 1. Fetch Volunteers (Read) ---
+  // --- 1. Fetch Volunteers (Updated Logic) ---
   const fetchVolunteers = async () => {
-    const { data, error } = await supabase
+    // Pehle User Pata Lagao
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) return; // Safety check
+
+    let query = supabase
       .from('volunteers')
       .select('*')
       .order('created_at', { ascending: false });
 
+    // LOGIC: Agar Admin nahi hai, toh sirf apna data dikhao
+    if (user.email !== 'admin@gmail.com') {
+      query = query.eq('user_email', user.email);
+      setIsAdmin(false);
+    } else {
+      setIsAdmin(true); // Admin hai toh sab dikhega
+    }
+
+    const { data, error } = await query;
+
     if (error) console.log('Error:', error);
-    else setVolunteers(data);
+    else setVolunteers(data || []);
   };
 
   useEffect(() => {
@@ -41,7 +57,7 @@ const Volunteers = () => {
       phone,
       event,
       availability,
-      user_email: user.email
+      user_email: user.email // Email save karna zaroori hai filtering ke liye
     }]);
 
     setLoading(false);
@@ -58,7 +74,7 @@ const Volunteers = () => {
       // Form Clear
       setName('');
       setPhone('');
-      fetchVolunteers();
+      fetchVolunteers(); // List refresh karo
     }
   };
 
@@ -81,11 +97,11 @@ const Volunteers = () => {
               <form onSubmit={handleSubmit}>
                 <div className="mb-3">
                   <label className="form-label small fw-bold">Full Name</label>
-                  <input className="form-control" value={name} onChange={(e) => setName(e.target.value)} required />
+                  <input className="form-control" value={name} onChange={(e) => setName(e.target.value)} required placeholder="Enter your name" />
                 </div>
                 <div className="mb-3">
                   <label className="form-label small fw-bold">Phone Number</label>
-                  <input className="form-control" value={phone} onChange={(e) => setPhone(e.target.value)} required />
+                  <input className="form-control" value={phone} onChange={(e) => setPhone(e.target.value)} required placeholder="03XXXXXXXXX" />
                 </div>
                 <div className="mb-3">
                   <label className="form-label small fw-bold">Select Event</label>
@@ -112,9 +128,13 @@ const Volunteers = () => {
           </div>
         </div>
 
-        {/* --- Section 2: Volunteers List (Admin View) --- */}
+        {/* --- Section 2: Volunteers List (Filtered) --- */}
         <div className="col-md-7">
-          <h4 className="mb-3">Registered Volunteers</h4>
+          {/* Heading Change based on User */}
+          <h4 className="mb-3">
+            {isAdmin ? "All Registered Volunteers (Admin View)" : "My Registrations"}
+          </h4>
+          
           <div className="card shadow-sm border-0">
             <div className="card-body p-0">
               <div className="table-responsive">
@@ -124,7 +144,7 @@ const Volunteers = () => {
                       <th>Name</th>
                       <th>Event</th>
                       <th>Availability</th>
-                      <th>Phone</th>
+                      {isAdmin && <th>Phone</th>} {/* Phone sirf Admin ko dikhega privacy ke liye */}
                     </tr>
                   </thead>
                   <tbody>
@@ -133,11 +153,12 @@ const Volunteers = () => {
                         <td className="fw-bold">{vol.name}</td>
                         <td><span className="badge bg-primary">{vol.event}</span></td>
                         <td>{vol.availability}</td>
-                        <td className="text-muted small">{vol.phone}</td>
+                        {/* Agar Admin hai tabhi Phone number dikhao, warna nahi */}
+                        {isAdmin && <td className="text-muted small">{vol.phone}</td>}
                       </tr>
                     ))}
                     {volunteers.length === 0 && (
-                      <tr><td colSpan="4" className="text-center py-3 text-muted">No volunteers yet.</td></tr>
+                      <tr><td colSpan="4" className="text-center py-3 text-muted">You haven't registered yet.</td></tr>
                     )}
                   </tbody>
                 </table>
