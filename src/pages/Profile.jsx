@@ -3,16 +3,22 @@ import { supabase } from '../config/supabaseClient';
 
 const Profile = () => {
   const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       setUser(user);
+      setLoading(false);
     };
     fetchUser();
   }, []);
 
-  if (!user) return <div className="text-center mt-5">Loading Profile...</div>;
+  if (loading) return <div className="text-center mt-5">Loading Profile...</div>;
+  if (!user) return <div className="text-center mt-5">Please Login to view Profile</div>;
+
+  // Metadata se values nikalna (Image, Name, Phone)
+  const { full_name, avatar_url, phone } = user.user_metadata || {};
 
   return (
     <div className="container mt-5 d-flex justify-content-center">
@@ -27,19 +33,37 @@ const Profile = () => {
 
         {/* Card Body */}
         <div className="card-body text-center p-4">
-          {/* Avatar / Photo Placeholder */}
-          <div className="mx-auto mb-3 d-flex align-items-center justify-content-center rounded-circle bg-light border border-3 border-success" 
-               style={{ width: '100px', height: '100px' }}>
-            <span className="display-4">👤</span>
+          
+          {/* Avatar / Photo Section */}
+          <div className="mx-auto mb-3 d-flex align-items-center justify-content-center rounded-circle bg-white border border-3 border-success overflow-hidden" 
+               style={{ width: '120px', height: '120px' }}>
+            
+            {avatar_url ? (
+              // Agar Image hai to ye dikhao
+              <img 
+                src={avatar_url} 
+                alt="Profile" 
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+              />
+            ) : (
+              // Agar Image nahi hai to Placeholder dikhao
+              <span className="display-4 text-secondary">👤</span>
+            )}
+
           </div>
 
-          <h3 className="fw-bold text-dark">{user.email.split('@')[0]}</h3>
+          {/* Name & Badge */}
+          <h3 className="fw-bold text-dark text-capitalize">
+            {full_name || "Student Name"}
+          </h3>
           <span className="badge bg-success px-3 py-2 mb-3">Verified Student</span>
 
           <hr />
 
-          <div className="text-start mt-4">
+          {/* Details Section */}
+          <div className="text-start mt-4 small">
             <p className="mb-2"><strong>📧 Email:</strong> {user.email}</p>
+            <p className="mb-2"><strong>📞 Phone:</strong> {phone || "N/A"}</p>
             <p className="mb-2"><strong>🎓 Batch:</strong> 2026</p>
             <p className="mb-2"><strong>🏫 Campus:</strong> Bahadurabad</p>
             <p className="mb-0"><strong>📅 Valid Till:</strong> Dec 2026</p>
@@ -51,8 +75,9 @@ const Profile = () => {
           <img 
             src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/84/EAN13.svg/1200px-EAN13.svg.png" 
             alt="Barcode" 
-            style={{ height: '40px', opacity: '0.7' }} 
+            style={{ height: '35px', opacity: '0.6' }} 
           />
+          <div className="small text-muted mt-1" style={{ fontSize: '10px' }}>SMIT-{user.id.slice(0, 8).toUpperCase()}</div>
         </div>
 
       </div>

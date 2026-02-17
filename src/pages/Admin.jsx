@@ -5,24 +5,32 @@ import { useNavigate } from 'react-router-dom';
 
 const Admin = () => {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('volunteers');
+  // Change 1: Default tab ab 'volunteers' hai (Dashboard hata diya)
+  const [activeTab, setActiveTab] = useState('volunteers'); 
+  const [loading, setLoading] = useState(true);
   
   // Data States
   const [volunteers, setVolunteers] = useState([]);
   const [complaints, setComplaints] = useState([]);
   const [items, setItems] = useState([]);
   const [notices, setNotices] = useState([]); 
-  const [messages, setMessages] = useState([]); // 1. New State for Messages
+  const [messages, setMessages] = useState([]);
 
   // Form State
   const [noticeTitle, setNoticeTitle] = useState('');
   const [noticeMsg, setNoticeMsg] = useState('');
 
+  // --- Auth Check & Fetch ---
   useEffect(() => {
     const checkAdmin = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user?.email !== 'admin@gmail.com') { 
-        Swal.fire('Access Denied', 'Sirf Admin yahan aa sakta hai!', 'error');
+        Swal.fire({
+          icon: 'error',
+          title: 'Access Denied',
+          text: 'This area is restricted to Administrators only.',
+          confirmButtonColor: '#d33'
+        });
         navigate('/');
       } else {
         fetchData();
@@ -32,28 +40,24 @@ const Admin = () => {
   }, []);
 
   const fetchData = async () => {
-    // 1. Fetch Volunteers
-    const { data: vData } = await supabase.from('volunteers').select('*').order('created_at', { ascending: false });
-    setVolunteers(vData || []);
+    setLoading(true);
+    const [v, c, i, n, m] = await Promise.all([
+      supabase.from('volunteers').select('*').order('created_at', { ascending: false }),
+      supabase.from('complaints').select('*').order('created_at', { ascending: false }),
+      supabase.from('lost_found_items').select('*').order('created_at', { ascending: false }),
+      supabase.from('announcements').select('*').order('created_at', { ascending: false }),
+      supabase.from('contact_messages').select('*').order('created_at', { ascending: false })
+    ]);
 
-    // 2. Fetch Complaints
-    const { data: cData } = await supabase.from('complaints').select('*').order('created_at', { ascending: false });
-    setComplaints(cData || []);
-
-    // 3. Fetch Lost Items
-    const { data: iData } = await supabase.from('lost_found_items').select('*').order('created_at', { ascending: false });
-    setItems(iData || []);
-
-    // 4. Fetch Notices
-    const { data: nData } = await supabase.from('announcements').select('*').order('created_at', { ascending: false });
-    setNotices(nData || []);
-
-    // 5. Fetch Messages (Contact Form)
-    const { data: mData } = await supabase.from('contact_messages').select('*').order('created_at', { ascending: false });
-    setMessages(mData || []);
+    setVolunteers(v.data || []);
+    setComplaints(c.data || []);
+    setItems(i.data || []);
+    setNotices(n.data || []);
+    setMessages(m.data || []);
+    setLoading(false);
   };
 
-  // --- Notice Post Karna ---
+  // --- Actions ---
   const postNotice = async (e) => {
     e.preventDefault();
     const { error } = await supabase.from('announcements').insert([{ 
@@ -62,7 +66,7 @@ const Admin = () => {
     }]);
 
     if (!error) {
-      Swal.fire('Success', 'Notice Board Updated!', 'success');
+      Swal.fire('Success', 'Announcement Posted!', 'success');
       setNoticeTitle('');
       setNoticeMsg('');
       fetchData();
@@ -71,162 +75,253 @@ const Admin = () => {
     }
   };
 
-  // Delete Function (Generic)
   const deleteItem = async (table, id) => {
-    if(!window.confirm("Are you sure?")) return;
-    await supabase.from(table).delete().eq('id', id);
-    fetchData(); // Refresh data
+    const result = await Swal.fire({
+      title: 'Are you sure?',
+      text: "You won't be able to revert this!",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'Yes, delete it!'
+    });
+
+    if (result.isConfirmed) {
+      await supabase.from(table).delete().eq('id', id);
+      Swal.fire('Deleted!', 'Record has been deleted.', 'success');
+      fetchData();
+    }
   };
 
-  // Complaint Solve Function
   const updateStatus = async (id, newStatus) => {
     await supabase.from('complaints').update({ status: newStatus }).eq('id', id);
     fetchData();
+    const toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000 });
+    toast.fire({ icon: 'success', title: `Status updated to ${newStatus}` });
   };
 
-  return (
-    <div className="container mt-4 mb-5">
-      <h2 className="fw-bold text-danger mb-4">🛡️ Admin Dashboard</h2>
+  if (loading) return <div className="text-center mt-5"><div className="spinner-border text-primary"></div></div>;
 
-      {/* Analytics Cards (Numbers) */}
-      <div className="row mb-4">
-        <div className="col-md-3">
-          <div className="card text-white bg-primary p-3 mb-2">
-            <h3>{volunteers.length}</h3>
-            <p className="mb-0">Volunteers</p>
+  return (
+    <div className="min-vh-100" style={{ backgroundColor: '#ebf2f7', paddingBottom: '50px' }}>
+      
+      {/* --- Admin Header --- */}
+      <div className="bg-dark text-white py-4 shadow-sm mb-5" style={{ background: 'linear-gradient(90deg, #1a1a1a 0%, #333 100%)' }}>
+        <div className="container d-flex justify-content-between align-items-center">
+          <div>
+            <h2 className="fw-bold mb-0">🛡️ Admin Dashboard</h2>
+            <small className="text-white-50">Saylani Mass IT Hub Control Panel</small>
           </div>
-        </div>
-        <div className="col-md-3">
-          <div className="card text-white bg-success p-3 mb-2">
-            <h3>{items.length}</h3>
-            <p className="mb-0">Lost Items</p>
-          </div>
-        </div>
-        <div className="col-md-3">
-          <div className="card text-white bg-warning p-3 mb-2">
-            <h3>{complaints.length}</h3>
-            <p className="mb-0">Complaints</p>
-          </div>
-        </div>
-        {/* New Messages Stats Card */}
-        <div className="col-md-3">
-          <div className="card text-white bg-info p-3 mb-2">
-            <h3>{messages.length}</h3>
-            <p className="mb-0">New Messages</p>
-          </div>
+          <button className="btn btn-outline-light btn-sm" onClick={() => navigate('/')}>Logout / Home</button>
         </div>
       </div>
 
-      {/* Tabs Navigation */}
-      <ul className="nav nav-tabs mb-4">
-        <li className="nav-item"><button className={`nav-link ${activeTab === 'volunteers' ? 'active' : ''}`} onClick={() => setActiveTab('volunteers')}>Volunteers</button></li>
-        <li className="nav-item"><button className={`nav-link ${activeTab === 'complaints' ? 'active' : ''}`} onClick={() => setActiveTab('complaints')}>Complaints</button></li>
-        <li className="nav-item"><button className={`nav-link ${activeTab === 'items' ? 'active' : ''}`} onClick={() => setActiveTab('items')}>Lost & Found</button></li>
-        <li className="nav-item"><button className={`nav-link ${activeTab === 'notices' ? 'active fw-bold text-danger' : ''}`} onClick={() => setActiveTab('notices')}>📢 Announcements</button></li>
-        {/* New Messages Tab */}
-        <li className="nav-item"><button className={`nav-link ${activeTab === 'messages' ? 'active fw-bold text-primary' : ''}`} onClick={() => setActiveTab('messages')}>📩 Messages</button></li>
-      </ul>
+      <div className="container" style={{ marginTop: '-40px' }}>
+        
+        {/* --- Stats Overview Cards (Yehi Asal Dashboard Hai) --- */}
+        <div className="row g-3 mb-5">
+          <div className="col-md-3">
+            <div className="card border-0 shadow-sm p-3 d-flex flex-row align-items-center justify-content-between bg-white rounded-4">
+              <div>
+                <h3 className="fw-bold text-dark mb-0">{volunteers.length}</h3>
+                <small className="text-muted">Volunteers</small>
+              </div>
+              <div className="bg-success bg-opacity-10 text-success p-3 rounded-circle display-6">🤝</div>
+            </div>
+          </div>
+          <div className="col-md-3">
+            <div className="card border-0 shadow-sm p-3 d-flex flex-row align-items-center justify-content-between bg-white rounded-4">
+              <div>
+                <h3 className="fw-bold text-dark mb-0">{items.length}</h3>
+                <small className="text-muted">Lost Items</small>
+              </div>
+              <div className="bg-danger bg-opacity-10 text-danger p-3 rounded-circle display-6">🔍</div>
+            </div>
+          </div>
+          <div className="col-md-3">
+            <div className="card border-0 shadow-sm p-3 d-flex flex-row align-items-center justify-content-between bg-white rounded-4">
+              <div>
+                <h3 className="fw-bold text-dark mb-0">{complaints.length}</h3>
+                <small className="text-muted">Tickets</small>
+              </div>
+              <div className="bg-warning bg-opacity-10 text-warning p-3 rounded-circle display-6">🎫</div>
+            </div>
+          </div>
+          <div className="col-md-3">
+            <div className="card border-0 shadow-sm p-3 d-flex flex-row align-items-center justify-content-between bg-white rounded-4">
+              <div>
+                <h3 className="fw-bold text-dark mb-0">{messages.length}</h3>
+                <small className="text-muted">Messages</small>
+              </div>
+              <div className="bg-primary bg-opacity-10 text-primary p-3 rounded-circle display-6">📩</div>
+            </div>
+          </div>
+        </div>
 
-      {/* --- Tab: Messages (NEW) --- */}
-      {activeTab === 'messages' && (
-        <div className="bg-white p-3 shadow-sm rounded">
-          <h5 className="fw-bold mb-3">User Inquiries</h5>
-          <div className="list-group">
-            {messages.map(m => (
-              <div key={m.id} className="list-group-item">
-                <div className="d-flex justify-content-between align-items-start">
-                  <div>
-                    <h6 className="fw-bold mb-1">{m.name} <span className="text-muted fw-normal" style={{fontSize: '0.9rem'}}>({m.email})</span></h6>
-                    <p className="mb-2 mt-2 bg-light p-2 rounded border">{m.message}</p>
-                    <small className="text-muted">Received: {new Date(m.created_at).toLocaleString()}</small>
+        {/* --- Navigation Tabs (Dashboard Removed) --- */}
+        <div className="d-flex overflow-auto gap-2 mb-4 pb-2">
+          {['volunteers', 'complaints', 'items', 'notices', 'messages'].map((tab) => (
+            <button 
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`btn px-4 py-2 rounded-pill fw-bold text-capitalize ${activeTab === tab ? 'btn-dark shadow' : 'btn-white bg-white text-muted border'}`}
+            >
+              {tab === 'items' ? 'Lost & Found' : tab}
+            </button>
+          ))}
+        </div>
+
+        {/* --- CONTENT AREA --- */}
+        <div className="bg-white p-4 rounded-4 shadow-sm border-0 min-vh-50">
+
+          {/* 1. VOLUNTEERS TAB */}
+          {activeTab === 'volunteers' && (
+            <div>
+              <h4 className="fw-bold mb-4">🤝 Registered Volunteers</h4>
+              <div className="table-responsive">
+                <table className="table table-hover align-middle">
+                  <thead className="table-light"><tr><th>Name</th><th>Event</th><th>Shift</th><th>Phone</th></tr></thead>
+                  <tbody>
+                    {volunteers.map(v => (
+                      <tr key={v.id}>
+                        <td className="fw-bold">{v.name}</td>
+                        <td><span className="badge bg-primary bg-opacity-10 text-primary">{v.event}</span></td>
+                        <td>{v.availability}</td>
+                        <td className="font-monospace">{v.phone}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* 2. COMPLAINTS TAB */}
+          {activeTab === 'complaints' && (
+            <div>
+              <h4 className="fw-bold mb-4">🎫 Support Tickets</h4>
+              <div className="table-responsive">
+                <table className="table table-hover align-middle">
+                  <thead className="table-light"><tr><th>Date</th><th>Category</th><th>Issue</th><th>Status</th><th>Actions</th></tr></thead>
+                  <tbody>
+                    {complaints.map(c => (
+                      <tr key={c.id}>
+                        <td className="small text-muted">{new Date(c.created_at).toLocaleDateString()}</td>
+                        <td className="fw-bold text-dark">{c.category}</td>
+                        <td className="small text-muted" style={{maxWidth: '300px'}}>{c.description}</td>
+                        <td>
+                          <span className={`badge rounded-pill ${c.status === 'Resolved' ? 'bg-success' : 'bg-warning text-dark'}`}>
+                            {c.status}
+                          </span>
+                        </td>
+                        <td>
+                          {c.status !== 'Resolved' && (
+                            <button className="btn btn-sm btn-success rounded-pill px-3" onClick={() => updateStatus(c.id, 'Resolved')}>
+                              ✓ Solve
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* 3. LOST ITEMS TAB */}
+          {activeTab === 'items' && (
+            <div>
+              <h4 className="fw-bold mb-4">🔍 Lost & Found Items</h4>
+              <div className="row g-3">
+                {items.map(i => (
+                  <div className="col-md-4 col-lg-3" key={i.id}>
+                    <div className="card h-100 border shadow-sm">
+                      <div className="card-body">
+                        <div className="d-flex justify-content-between mb-2">
+                          <span className={`badge ${i.type === 'Lost' ? 'bg-danger' : 'bg-success'}`}>{i.type}</span>
+                          <span className={`badge ${i.status === 'Pending' ? 'bg-warning text-dark' : 'bg-secondary'}`}>{i.status}</span>
+                        </div>
+                        <h6 className="fw-bold">{i.title}</h6>
+                        <p className="small text-muted text-truncate">{i.description}</p>
+                        <p className="small mb-2">📞 {i.contact}</p>
+                        <button className="btn btn-sm btn-outline-danger w-100" onClick={() => deleteItem('lost_found_items', i.id)}>
+                          Remove
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                  <button className="btn btn-sm btn-outline-danger ms-3" onClick={() => deleteItem('contact_messages', m.id)}>Delete</button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 4. NOTICES TAB */}
+          {activeTab === 'notices' && (
+            <div className="row">
+              <div className="col-md-4 border-end">
+                <h5 className="fw-bold mb-3">📢 Post Announcement</h5>
+                <form onSubmit={postNotice}>
+                  <div className="mb-3">
+                    <label className="small fw-bold text-muted">Title</label>
+                    <input className="form-control" value={noticeTitle} onChange={e => setNoticeTitle(e.target.value)} required />
+                  </div>
+                  <div className="mb-3">
+                    <label className="small fw-bold text-muted">Message</label>
+                    <textarea className="form-control" rows="4" value={noticeMsg} onChange={e => setNoticeMsg(e.target.value)} required></textarea>
+                  </div>
+                  <button className="btn btn-dark w-100 fw-bold">Publish Notice</button>
+                </form>
+              </div>
+              <div className="col-md-8 ps-md-4">
+                <h5 className="fw-bold mb-3">Active Notices</h5>
+                <div className="list-group">
+                  {notices.map(n => (
+                    <div key={n.id} className="list-group-item list-group-item-action d-flex justify-content-between align-items-start border-0 border-bottom">
+                      <div>
+                        <div className="d-flex w-100 justify-content-between">
+                          <h6 className="mb-1 fw-bold text-dark">{n.title}</h6>
+                        </div>
+                        <p className="mb-1 text-secondary small">{n.message}</p>
+                        <small className="text-muted">{new Date(n.created_at).toLocaleDateString()}</small>
+                      </div>
+                      <button className="btn btn-sm text-danger" onClick={() => deleteItem('announcements', n.id)}>🗑️</button>
+                    </div>
+                  ))}
                 </div>
               </div>
-            ))}
-            {messages.length === 0 && <p className="text-center text-muted p-3">No messages yet.</p>}
-          </div>
-        </div>
-      )}
-
-      {/* --- Tab: Announcements --- */}
-      {activeTab === 'notices' && (
-        <div className="row">
-          <div className="col-md-4">
-            <div className="card p-3 shadow-sm border-0 bg-light">
-              <h5 className="fw-bold">Post New Notice</h5>
-              <form onSubmit={postNotice}>
-                <input className="form-control mb-2" placeholder="Title (e.g. Holiday)" value={noticeTitle} onChange={e => setNoticeTitle(e.target.value)} required />
-                <textarea className="form-control mb-2" rows="3" placeholder="Message..." value={noticeMsg} onChange={e => setNoticeMsg(e.target.value)} required></textarea>
-                <button className="btn btn-danger w-100">Post Notice</button>
-              </form>
             </div>
-          </div>
-          <div className="col-md-8">
-            <h5 className="fw-bold">Active Notices</h5>
-            <div className="list-group">
-              {notices.map(n => (
-                <div key={n.id} className="list-group-item d-flex justify-content-between align-items-center">
-                  <div>
-                    <h6 className="mb-1 fw-bold text-danger">{n.title}</h6>
-                    <p className="mb-0 small text-muted">{n.message}</p>
-                    <small className="text-muted" style={{fontSize: '0.7rem'}}>{new Date(n.created_at).toLocaleDateString()}</small>
+          )}
+
+          {/* 5. MESSAGES TAB */}
+          {activeTab === 'messages' && (
+            <div>
+              <h4 className="fw-bold mb-4">📩 Contact Inquiries</h4>
+              <div className="row">
+                {messages.map(m => (
+                  <div className="col-md-6 mb-3" key={m.id}>
+                    <div className="p-3 border rounded bg-light position-relative">
+                      <button 
+                        className="btn btn-sm position-absolute top-0 end-0 m-2 text-muted" 
+                        onClick={() => deleteItem('contact_messages', m.id)}
+                      >✕</button>
+                      <h6 className="fw-bold mb-0">{m.name}</h6>
+                      <small className="text-primary">{m.email}</small>
+                      <hr className="my-2"/>
+                      <p className="mb-0 small text-secondary">"{m.message}"</p>
+                      <small className="text-muted d-block mt-2 text-end" style={{fontSize: '0.7rem'}}>
+                        {new Date(m.created_at).toLocaleString()}
+                      </small>
+                    </div>
                   </div>
-                  <button className="btn btn-sm btn-outline-danger" onClick={() => deleteItem('announcements', n.id)}>Delete</button>
-                </div>
-              ))}
+                ))}
+                {messages.length === 0 && <p className="text-muted">No new messages.</p>}
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          )}
 
-      {/* --- Tab: Volunteers --- */}
-      {activeTab === 'volunteers' && (
-        <div className="table-responsive bg-white p-3 shadow-sm rounded">
-          <table className="table">
-            <thead><tr><th>Name</th><th>Event</th><th>Availability</th><th>Phone</th></tr></thead>
-            <tbody>
-              {volunteers.map(v => <tr key={v.id}><td>{v.name}</td><td>{v.event}</td><td>{v.availability}</td><td>{v.phone}</td></tr>)}
-            </tbody>
-          </table>
         </div>
-      )}
-
-      {/* --- Tab: Complaints --- */}
-      {activeTab === 'complaints' && (
-        <div className="table-responsive bg-white p-3 shadow-sm rounded">
-          <table className="table">
-            <thead><tr><th>Category</th><th>Description</th><th>Status</th><th>Action</th></tr></thead>
-            <tbody>
-              {complaints.map(c => (
-                <tr key={c.id}>
-                  <td>{c.category}</td><td>{c.description}</td>
-                  <td><span className={`badge ${c.status === 'Resolved' ? 'bg-success' : 'bg-warning text-dark'}`}>{c.status}</span></td>
-                  <td>{c.status !== 'Resolved' && <button className="btn btn-sm btn-success" onClick={() => updateStatus(c.id, 'Resolved')}>Mark Resolved</button>}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-       {/* --- Tab: Lost Items --- */}
-       {activeTab === 'items' && (
-        <div className="table-responsive bg-white p-3 shadow-sm rounded">
-          <table className="table">
-            <thead><tr><th>Title</th><th>Type</th><th>Status</th><th>Action</th></tr></thead>
-            <tbody>
-              {items.map(i => (
-                <tr key={i.id}>
-                  <td>{i.title}</td><td>{i.type}</td>
-                  <td>{i.status}</td>
-                  <td><button className="btn btn-sm btn-danger" onClick={() => deleteItem('lost_found_items', i.id)}>Delete</button></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      </div>
     </div>
   );
 };
