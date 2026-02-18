@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'; // 1. useLocation add kiya
 import { supabase } from './config/supabaseClient'; 
 
 // Components
 import Navbar from './components/Navbar'; 
-import AnnouncementBanner from './components/AnnouncementBanner'; // 1. Import kiya
+import AnnouncementBanner from './components/AnnouncementBanner';
 
 // Pages
 import Auth from './pages/Auth';
@@ -20,8 +20,10 @@ function App() {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
   
+  // 2. Current location pata karne ke liye (Taake Landing page par double Navbar na aaye)
+  const location = useLocation(); 
+
   useEffect(() => {
-    // 1. Check Session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setLoading(false);
@@ -38,33 +40,45 @@ function App() {
     return <div className="p-5 text-center">Loading...</div>;
   }
 
+  // Helper: Check agar hum Landing page par hain
+  const isLandingPage = location.pathname === '/';
+
   return (
     <>
-      {/* Agar user login hai, toh Navbar aur Announcement dikhao */}
-      {session && <Navbar />}
-      
-      {/* 2. Ye component khud check karega ke notice hai ya nahi */}
-      {session && <AnnouncementBanner />}
+      {/* Navbar aur Banner sirf tab dikhao jab:
+         1. User Login ho (session)
+         2. AUR hum Landing Page par NA hon (!isLandingPage)
+         (Kyunke Landing page ka apna Header hai)
+      */}
+      {session && !isLandingPage && <Navbar />}
+      {session && !isLandingPage && <AnnouncementBanner />}
 
       <Routes>
-        <Route path="/auth" element={!session ? <Auth /> : <Navigate to="/" />} />
-
-        {/* --- MAIN ROUTE --- */}
-        {/* Login ? Dashboard : Landing Page */}
-        <Route 
-          path="/" 
-          element={session ? <Dashboard session={session} /> : <Landing />} 
-        />
         
-        {/* --- PROTECTED ROUTES --- */}
-        {/* Agar session nahi hai to wapis Landing Page (/) par bhejo */}
-        <Route path="/lost-found" element={session ? <LostFound /> : <Navigate to="/" />} />
-        <Route path="/complaints" element={session ? <Complaints /> : <Navigate to="/" />} />
-        <Route path="/volunteers" element={session ? <Volunteers /> : <Navigate to="/" />} />
-        <Route path="/admin" element={session ? <Admin /> : <Navigate to="/" />} />
-        <Route path="/profile" element={session ? <Profile /> : <Navigate to="/" />} />
+        {/* --- CHANGE 1: Root Route Hamesha Landing Page Hoga --- */}
+        <Route path="/" element={<Landing />} />
 
-        <Route path="*" element={<Navigate to={session ? "/" : "/"} />} />
+        {/* --- CHANGE 2: Dashboard ka alag route bana diya --- */}
+        <Route 
+          path="/dashboard" 
+          element={session ? <Dashboard session={session} /> : <Navigate to="/auth" />} 
+        />
+
+        {/* --- CHANGE 3: Auth Logic --- */}
+        {/* Agar login nahi hai to Auth dikhao, agar hai to Dashboard bhejo */}
+        <Route path="/auth" element={!session ? <Auth /> : <Navigate to="/dashboard" />} />
+
+        {/* --- Protected Routes --- */}
+        {/* Ab agar user login nahi hai to '/auth' par bhejo, '/' par nahi */}
+        <Route path="/lost-found" element={session ? <LostFound /> : <Navigate to="/auth" />} />
+        <Route path="/complaints" element={session ? <Complaints /> : <Navigate to="/auth" />} />
+        <Route path="/volunteers" element={session ? <Volunteers /> : <Navigate to="/auth" />} />
+        <Route path="/admin" element={session ? <Admin /> : <Navigate to="/auth" />} />
+        <Route path="/profile" element={session ? <Profile /> : <Navigate to="/auth" />} />
+
+        {/* Catch All: Koi ghalat link dale to Landing par bhej do */}
+        <Route path="*" element={<Navigate to="/" />} />
+
       </Routes>
     </>
   );

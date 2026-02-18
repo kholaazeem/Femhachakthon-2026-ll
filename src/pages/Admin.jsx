@@ -5,7 +5,6 @@ import { useNavigate } from 'react-router-dom';
 
 const Admin = () => {
   const navigate = useNavigate();
-  // Change 1: Default tab ab 'volunteers' hai (Dashboard hata diya)
   const [activeTab, setActiveTab] = useState('volunteers'); 
   const [loading, setLoading] = useState(true);
   

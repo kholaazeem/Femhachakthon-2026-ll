@@ -60,7 +60,7 @@ const Auth = () => {
 
           // Get Public URL
           const { data } = supabase.storage
-            .from('profile-pics')
+            .from('PROFILE-PICS')
             .getPublicUrl(fileName);
             
           avatarUrl = data.publicUrl;
