@@ -9,8 +9,12 @@ const Complaints = () => {
   const [loading, setLoading] = useState(false);
 
   // Form States
-  const [category, setCategory] = useState('Internet');
+  const [campus, setCampus] = useState('Bahadurabad (Head Office)');
+  const [category, setCategory] = useState('Internet / Wi-Fi');
   const [description, setDescription] = useState('');
+  
+  // Edit State
+  const [editId, setEditId] = useState(null);
 
   // --- Fetch Data ---
   const fetchComplaints = async () => {
@@ -30,33 +34,84 @@ const Complaints = () => {
     fetchComplaints();
   }, []);
 
-  // --- Submit Complaint ---
+  // --- Submit or Update Complaint ---
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
 
-    const { data: { user } } = await supabase.auth.getUser();
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
 
-    const { error } = await supabase.from('complaints').insert([{
-      category,
-      description,
-      status: 'Submitted', // Default Status
-      user_email: user.email
-    }]);
+      if (editId) {
+        // Update Existing Ticket
+        const { error } = await supabase.from('complaints').update({
+          campus, category, description
+        }).eq('id', editId);
+        
+        if (error) throw error;
+        Swal.fire({ icon: 'success', title: 'Updated!', text: 'Your ticket has been updated.', confirmButtonColor: '#66b032' });
+      } else {
+        // Create New Ticket
+        const { error } = await supabase.from('complaints').insert([{
+          campus,
+          category,
+          description,
+          status: 'Submitted',
+          user_email: user.email
+        }]);
+        
+        if (error) throw error;
+        Swal.fire({ icon: 'success', title: 'Ticket Created!', text: 'Admin will review your issue shortly.', confirmButtonColor: '#66b032' });
+      }
 
-    setLoading(false);
-
-    if (error) {
-      Swal.fire('Error', error.message, 'error');
-    } else {
-      Swal.fire({
-        icon: 'success',
-        title: 'Ticket Created!',
-        text: 'Admin will review your issue shortly.',
-        confirmButtonColor: '#66b032'
-      });
+      // Reset Form
+      setCampus('Bahadurabad (Head Office)');
+      setCategory('Internet / Wi-Fi');
       setDescription('');
+      setEditId(null);
       fetchComplaints();
+
+    } catch (error) {
+      Swal.fire('Error', error.message, 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // --- Edit Action ---
+  const handleEdit = (item) => {
+    setEditId(item.id);
+    setCampus(item.campus || 'Bahadurabad (Head Office)');
+    setCategory(item.category);
+    setDescription(item.description);
+    window.scrollTo({ top: 0, behavior: 'smooth' }); // Scroll up to form
+  };
+
+  const cancelEdit = () => {
+    setEditId(null);
+    setCampus('Bahadurabad (Head Office)');
+    setCategory('Internet / Wi-Fi');
+    setDescription('');
+  };
+
+  // --- Delete Action ---
+  const handleDelete = async (id) => {
+    const result = await Swal.fire({
+      title: 'Delete Ticket?',
+      text: "Are you sure you want to remove this complaint?",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#6c757d',
+      confirmButtonText: 'Yes, Delete!'
+    });
+
+    if (result.isConfirmed) {
+      const { error } = await supabase.from('complaints').delete().eq('id', id);
+      if (!error) {
+        Swal.fire('Deleted!', 'Your ticket has been removed.', 'success');
+        fetchComplaints();
+      }
     }
   };
 
@@ -71,6 +126,7 @@ const Complaints = () => {
 
   // Helper for Category Icons
   const getCategoryIcon = (cat) => {
+    if (!cat) return '📝';
     if (cat.includes('Internet')) return '📶';
     if (cat.includes('Electricity')) return '⚡';
     if (cat.includes('Water')) return '💧';
@@ -93,18 +149,42 @@ const Complaints = () => {
         <div className="card shadow-lg border-0 rounded-4 mb-5 animate__animated animate__fadeInUp">
           <div className="card-body p-4 p-md-5 bg-white rounded-4">
             <div className="d-flex align-items-center mb-4">
-              <div className="bg-danger text-white rounded-circle d-flex align-items-center justify-content-center me-3 shadow" style={{ width: '55px', height: '55px', fontSize: '24px' }}>
-                !
+              <div className={`text-white rounded-circle d-flex align-items-center justify-content-center me-3 shadow ${editId ? 'bg-primary' : 'bg-danger'}`} style={{ width: '55px', height: '55px', fontSize: '24px' }}>
+                <i className={`bi ${editId ? 'bi-pencil' : 'bi-exclamation-lg'}`}>{editId ? '✏️' : '!'}</i>
               </div>
               <div>
-                <h4 className="fw-bold mb-0 text-dark">Submit New Ticket</h4>
-                <small className="text-muted">Describe your issue clearly for faster resolution.</small>
+                <h4 className="fw-bold mb-0 text-dark">{editId ? 'Edit Your Ticket' : 'Submit New Ticket'}</h4>
+                <small className="text-muted">{editId ? 'Update your complaint details below.' : 'Describe your issue clearly for faster resolution.'}</small>
               </div>
             </div>
 
             <form onSubmit={handleSubmit}>
               <div className="row g-4">
-                <div className="col-md-4">
+                
+                {/* Campus Dropdown */}
+                <div className="col-md-6">
+                  <label className="form-label fw-bold small text-secondary">Campus Location</label>
+                  <div className="input-group">
+                    <span className="input-group-text bg-light border-0">🏫</span>
+                    <select 
+                      className="form-select form-select-lg bg-light border-0" 
+                      value={campus} 
+                      onChange={(e) => setCampus(e.target.value)}
+                    >
+                      <option>Bahadurabad (Head Office)</option>
+                      <option>Gulshan Campus</option>
+                      <option>Nipa Campus</option>
+                      <option>Johar Campus</option>
+                      <option>Malir Campus</option>
+                      <option>Numaish Campus</option>
+                      <option>Saddar Campus</option>
+                      <option>Other</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Category Dropdown */}
+                <div className="col-md-6">
                   <label className="form-label fw-bold small text-secondary">Issue Category</label>
                   <div className="input-group">
                     <span className="input-group-text bg-light border-0">📂</span>
@@ -122,7 +202,7 @@ const Complaints = () => {
                   </div>
                 </div>
 
-                <div className="col-md-8">
+                <div className="col-12">
                   <label className="form-label fw-bold small text-secondary">Problem Details</label>
                   <div className="input-group">
                     <span className="input-group-text bg-light border-0">✍️</span>
@@ -137,9 +217,14 @@ const Complaints = () => {
                   </div>
                 </div>
 
-                <div className="col-12 text-end mt-4">
-                  <button type="submit" className="btn btn-lg fw-bold text-white px-5 shadow-sm" disabled={loading} style={{ backgroundColor: '#0057a8' }}>
-                    {loading ? 'Submitting...' : ' Submit Ticket'}
+                <div className="col-12 d-flex justify-content-end gap-2 mt-4">
+                  {editId && (
+                    <button type="button" className="btn btn-lg btn-light fw-bold text-muted shadow-sm px-4" onClick={cancelEdit}>
+                      Cancel
+                    </button>
+                  )}
+                  <button type="submit" className={`btn btn-lg fw-bold text-white px-5 shadow-sm ${editId ? 'btn-primary' : ''}`} disabled={loading} style={{ backgroundColor: editId ? '' : '#0057a8' }}>
+                    {loading ? 'Processing...' : (editId ? 'Update Ticket' : '🚀 Submit Ticket')}
                   </button>
                 </div>
               </div>
@@ -153,18 +238,19 @@ const Complaints = () => {
           <span className="badge bg-secondary rounded-pill">{complaints.length} Tickets</span>
         </div>
 
-        {/* --- Complaints Grid (Cards instead of Table) --- */}
+        {/* --- Complaints Grid --- */}
         <div className="row g-4">
           {complaints.map((item) => (
             <div className="col-md-6 col-lg-4" key={item.id}>
               <div 
-                className="card h-100 border-0 shadow-sm" 
+                className="card h-100 border-0 shadow-sm d-flex flex-column" 
                 style={{ 
                   borderRadius: '15px', 
                   borderLeft: `5px solid ${item.status === 'Resolved' ? '#198754' : item.status === 'In Progress' ? '#0d6efd' : '#ffc107'}` 
                 }}
               >
-                <div className="card-body p-4">
+                <div className="card-body p-4 flex-grow-1">
+                  
                   {/* Header: Date & Status */}
                   <div className="d-flex justify-content-between align-items-start mb-3">
                     <span className="text-muted small bg-light px-2 py-1 rounded">
@@ -176,9 +262,16 @@ const Complaints = () => {
                   </div>
 
                   {/* Title & Icon */}
-                  <div className="d-flex align-items-center mb-3">
+                  <div className="d-flex align-items-center mb-2">
                     <div className="fs-2 me-3">{getCategoryIcon(item.category)}</div>
                     <h5 className="fw-bold text-dark mb-0">{item.category}</h5>
+                  </div>
+                  
+                  {/* Campus Badge */}
+                  <div className="mb-3">
+                    <span className="badge bg-secondary bg-opacity-10 text-secondary border">
+                      🏫 {item.campus || 'Not specified'}
+                    </span>
                   </div>
 
                   {/* Description */}
@@ -187,12 +280,24 @@ const Complaints = () => {
                   </p>
                 </div>
                 
-                {/* Footer (Optional: if you add Admin Remarks later) */}
-                {item.status === 'Resolved' && (
-                  <div className="card-footer bg-transparent border-0 pt-0 pb-3">
-                     <small className="text-success fw-bold"><i className="bi bi-check-circle-fill me-1"></i> Issue Resolved</small>
-                  </div>
-                )}
+                {/* Actions Footer */}
+                <div className="card-footer bg-transparent border-top p-3">
+                  {item.status === 'Resolved' ? (
+                    <div className="d-flex justify-content-between align-items-center">
+                       <small className="text-success fw-bold"><i className="bi bi-check-circle-fill me-1"></i> Issue Resolved</small>
+                       <button onClick={() => handleDelete(item.id)} className="btn btn-sm text-danger opacity-75 hover-opacity-100 p-0">🗑️ Delete</button>
+                    </div>
+                  ) : (
+                    <div className="d-flex gap-2">
+                      <button onClick={() => handleEdit(item)} className="btn btn-sm btn-light text-primary border w-50 fw-bold rounded-pill">
+                        ✏️ Edit
+                      </button>
+                      <button onClick={() => handleDelete(item.id)} className="btn btn-sm btn-light text-danger border w-50 fw-bold rounded-pill">
+                        🗑️ Delete
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           ))}
