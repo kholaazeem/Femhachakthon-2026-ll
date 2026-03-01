@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../config/supabaseClient';
 import Swal from 'sweetalert2';
 import { useNavigate } from 'react-router-dom';
+// Emojis ki jagah professional icons import kiye hain
+import { Search, Plus, Edit2, Send, Package, CheckCircle, Phone, Sparkles, Trash2, Clock, Inbox } from 'lucide-react';
 
 const LostFound = () => {
   const navigate = useNavigate();
@@ -170,7 +172,9 @@ const LostFound = () => {
       
       {/* --- Page Header --- */}
       <div className="text-center py-5 text-white shadow-sm" style={{ background: 'linear-gradient(135deg, #0057a8 0%, #003060 100%)' }}>
-        <h1 className="fw-bold display-5">🔍 Community Lost & Found</h1>
+        <h1 className="fw-bold display-5 d-flex justify-content-center align-items-center gap-3">
+          <Search size={48} /> Community Lost & Found
+        </h1>
         <p className="lead opacity-75">Help us connect lost items with their owners.</p>
       </div>
 
@@ -180,8 +184,8 @@ const LostFound = () => {
         <div className="card shadow-lg border-0 rounded-4 mb-5 animate__animated animate__fadeInUp">
           <div className="card-body p-4 p-md-5 bg-white rounded-4">
             <div className="d-flex align-items-center mb-4">
-              <div className={`text-white rounded-circle d-flex align-items-center justify-content-center me-3 shadow ${editId ? 'bg-primary' : 'bg-success'}`} style={{ width: '55px', height: '55px', fontSize: '24px' }}>
-                <i className={`bi ${editId ? 'bi-pencil' : 'bi-plus-lg'}`}>{editId ? '✏️' : '+'}</i>
+              <div className={`text-white rounded-circle d-flex align-items-center justify-content-center me-3 shadow ${editId ? 'bg-primary' : 'bg-success'}`} style={{ width: '55px', height: '55px' }}>
+                {editId ? <Edit2 size={26} /> : <Plus size={28} />}
               </div>
               <div>
                 <h4 className="fw-bold mb-0 text-dark">{editId ? 'Edit Your Post' : 'Report an Item'}</h4>
@@ -199,8 +203,8 @@ const LostFound = () => {
                 <div className="col-md-3">
                   <label className="form-label fw-bold small text-secondary">Type</label>
                   <select className="form-select form-select-lg bg-light border-0" value={type} onChange={(e) => setType(e.target.value)}>
-                    <option value="Lost">🔴 Lost</option>
-                    <option value="Found">🟢 Found</option>
+                    <option value="Lost">Lost</option>
+                    <option value="Found">Found</option>
                   </select>
                 </div>
 
@@ -225,8 +229,8 @@ const LostFound = () => {
                       Cancel
                     </button>
                   )}
-                  <button type="submit" className={`btn btn-lg fw-bold text-white shadow ${editId ? 'w-50' : 'w-100'}`} disabled={loading} style={{ backgroundColor: editId ? '#0d6efd' : '#0057a8', transition: '0.3s' }}>
-                    {loading ? 'Processing...' : (editId ? 'Update' : '🚀 Post Now')}
+                  <button type="submit" className={`btn btn-lg fw-bold text-white shadow d-flex justify-content-center align-items-center gap-2 ${editId ? 'w-50' : 'w-100'}`} disabled={loading} style={{ backgroundColor: editId ? '#0d6efd' : '#0057a8', transition: '0.3s' }}>
+                    {loading ? 'Processing...' : (editId ? 'Update' : <><Send size={18} /> Post Now</>)}
                   </button>
                 </div>
               </div>
@@ -250,7 +254,7 @@ const LostFound = () => {
           </div>
           
           <div className="input-group shadow-sm w-md-50 rounded-pill overflow-hidden border-0" style={{ maxWidth: '400px' }}>
-            <span className="input-group-text bg-white border-0 ps-3 text-muted">🔍</span>
+            <span className="input-group-text bg-white border-0 ps-3 text-muted"><Search size={18} /></span>
             <input 
               type="text" 
               className="form-control border-0 ps-2" 
@@ -288,7 +292,9 @@ const LostFound = () => {
                     {item.image_url ? (
                       <img src={item.image_url} alt={item.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     ) : (
-                      <div className="d-flex align-items-center justify-content-center h-100 text-secondary display-4 opacity-25">📦</div>
+                      <div className="d-flex align-items-center justify-content-center h-100">
+                        <Package size={60} className="text-secondary opacity-25" />
+                      </div>
                     )}
                   </div>
 
@@ -301,8 +307,8 @@ const LostFound = () => {
 
                   {/* Resolved Stamp */}
                   {item.status === 'Recovered' && (
-                     <div className="position-absolute bottom-0 start-0 w-100 p-2 text-center" style={{ backgroundColor: 'rgba(25, 135, 84, 0.9)', color: 'white' }}>
-                        <span className="fw-bold ls-2">✅ RESOLVED</span>
+                     <div className="position-absolute bottom-0 start-0 w-100 p-2 text-center d-flex justify-content-center align-items-center gap-2" style={{ backgroundColor: 'rgba(25, 135, 84, 0.9)', color: 'white' }}>
+                        <CheckCircle size={18} /> <span className="fw-bold ls-2">RESOLVED</span>
                      </div>
                   )}
                 </div>
@@ -317,7 +323,7 @@ const LostFound = () => {
                   <p className="text-secondary small mb-3 flex-grow-1">{item.description}</p>
                   
                   <div className="p-3 rounded-3 mb-3 d-flex align-items-center" style={{ backgroundColor: item.status === 'Recovered' ? '#d1e7dd' : '#f8f9fa' }}>
-                    <span className="me-2 fs-5">📞</span> 
+                    <Phone size={20} className="me-2 text-muted" /> 
                     <span className="fw-bold text-dark">{item.contact}</span>
                   </div>
 
@@ -326,27 +332,27 @@ const LostFound = () => {
                     // IF OWNER
                     <>
                       {item.status === 'Pending' ? (
-                        <button className="btn w-100 btn-outline-success fw-bold rounded-pill mb-2" onClick={() => markAsFound(item.id)}>
-                          ✨ Mark as Recovered
+                        <button className="btn w-100 btn-outline-success fw-bold rounded-pill mb-2 d-flex justify-content-center align-items-center gap-2" onClick={() => markAsFound(item.id)}>
+                          <Sparkles size={18} /> Mark as Recovered
                         </button>
                       ) : (
-                        <button className="btn w-100 btn-success fw-bold rounded-pill disabled border-0 mb-2" style={{ opacity: 1 }}>
-                          Case Closed
+                        <button className="btn w-100 btn-success fw-bold rounded-pill disabled border-0 mb-2 d-flex justify-content-center align-items-center gap-2" style={{ opacity: 1 }}>
+                          <CheckCircle size={18} /> Case Closed
                         </button>
                       )}
                       <div className="d-flex gap-2">
-                        <button onClick={() => handleEdit(item)} className="btn btn-sm btn-light text-primary border w-50 rounded-pill fw-bold">
-                          ✏️ Edit
+                        <button onClick={() => handleEdit(item)} className="btn btn-sm btn-light text-primary border w-50 rounded-pill fw-bold d-flex justify-content-center align-items-center gap-2">
+                          <Edit2 size={16} /> Edit
                         </button>
-                        <button onClick={() => handleDelete(item.id)} className="btn btn-sm btn-light text-danger border w-50 rounded-pill fw-bold">
-                          🗑️ Delete
+                        <button onClick={() => handleDelete(item.id)} className="btn btn-sm btn-light text-danger border w-50 rounded-pill fw-bold d-flex justify-content-center align-items-center gap-2">
+                          <Trash2 size={16} /> Delete
                         </button>
                       </div>
                     </>
                   ) : (
                     // IF NOT OWNER
-                    <button className={`btn w-100 fw-bold rounded-pill disabled border-0 ${item.status === 'Recovered' ? 'btn-success text-white' : 'btn-light text-dark'}`} style={{ opacity: 1 }}>
-                      {item.status === 'Recovered' ? '✅ Case Closed' : '⏳ Pending Recovery'}
+                    <button className={`btn w-100 fw-bold rounded-pill disabled border-0 d-flex justify-content-center align-items-center gap-2 ${item.status === 'Recovered' ? 'btn-success text-white' : 'btn-light text-dark'}`} style={{ opacity: 1 }}>
+                      {item.status === 'Recovered' ? <><CheckCircle size={18} /> Case Closed</> : <><Clock size={18} /> Pending Recovery</>}
                     </button>
                   )}
                   
@@ -357,7 +363,7 @@ const LostFound = () => {
           
           {items.length === 0 && (
             <div className="col-12 text-center py-5">
-              <div className="display-1 text-muted opacity-25">📭</div>
+              <div className="mb-3"><Inbox size={80} className="text-muted opacity-25" /></div>
               <h4 className="text-muted mt-3">No items found</h4>
               <p className="text-muted small">Try adjusting your search or filters.</p>
             </div>

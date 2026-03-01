@@ -6,6 +6,7 @@ import { supabase } from './config/supabaseClient';
 import Navbar from './components/Navbar'; 
 import AnnouncementBanner from './components/AnnouncementBanner';
 
+
 // Pages
 import Auth from './pages/Auth';
 import Dashboard from './pages/Dashboard'; 
@@ -14,7 +15,7 @@ import Complaints from './pages/Complaints';
 import Volunteers from './pages/Volunteers'; 
 import Admin from './pages/Admin'; 
 import Landing from './pages/Landing'; 
-import Profile from './pages/Profile'; 
+
 
 function App() {
   const [session, setSession] = useState(null);
@@ -74,7 +75,7 @@ function App() {
         <Route path="/complaints" element={session ? <Complaints /> : <Navigate to="/auth" />} />
         <Route path="/volunteers" element={session ? <Volunteers /> : <Navigate to="/auth" />} />
         <Route path="/admin" element={session ? <Admin /> : <Navigate to="/auth" />} />
-        <Route path="/profile" element={session ? <Profile /> : <Navigate to="/auth" />} />
+       
 
         {/* Catch All: Koi ghalat link dale to Landing par bhej do */}
         <Route path="*" element={<Navigate to="/" />} />

@@ -1,0 +1,57 @@
+/* =========================================
+   SweetAlert2 Global Button Styling (Forced)
+========================================= */
+
+body .swal2-container .swal2-actions .swal2-confirm {
+  background-color: #66b032 !important;
+  border-color: #66b032 !important;
+  color: #ffffff !important;
+  box-shadow: none !important;
+}
+
+body .swal2-container .swal2-actions .swal2-confirm:hover {
+  background-color: #559428 !important;
+  border-color: #559428 !important;
+}
+
+body .swal2-container .swal2-actions .swal2-confirm:focus {
+  box-shadow: 0 0 0 3px rgba(102, 176, 50, 0.4) !important;
+}
+
+
+/* =========================================
+   Relaxed & Elegant Fade-In-Up (Bilkul Aram Se)
+========================================= */
+.animate-fade-in-up {
+  opacity: 0;
+  transform: translateY(30px); /* Thora kam fasla taake movement soft lagay */
+  /* 1.5 seconds ki long aur relaxed animation */
+  animation: relaxFadeInUp 1.5s cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
+  will-change: transform, opacity; 
+}
+
+/* Delays zyada kiye hain taake ekdum se sab na aayein, aahista aahista aayein */
+.delay-1 { animation-delay: 0.3s; }
+.delay-2 { animation-delay: 0.6s; }
+.delay-3 { animation-delay: 0.9s; }
+.delay-4 { animation-delay: 1.2s; }
+
+@keyframes relaxFadeInUp {
+  0% {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Hover effect ko bhi thora soft kar diya hai */
+.feature-card {
+  transition: transform 0.5s cubic-bezier(0.25, 0.8, 0.25, 1), box-shadow 0.5s ease;
+}
+.feature-card:hover {
+  transform: translateY(-8px); /* Soft lift */
+  box-shadow: 0 15px 30px rgba(0,0,0,0.08) !important;
+}

@@ -1,5 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+// Emojis ki jagah Professional Icons import kiye hain
+import { Search, FileText, HeartHandshake, CheckCircle, UserCheck } from 'lucide-react';
 
 const Dashboard = ({ session }) => {
   const navigate = useNavigate();
@@ -14,7 +16,9 @@ const Dashboard = ({ session }) => {
       <div className="py-5 text-center text-white shadow-sm" 
            style={{ background: 'linear-gradient(135deg, #0057a8 0%, #003060 100%)', borderBottomLeftRadius: '30px', borderBottomRightRadius: '30px' }}>
         <div className="container">
-          <h1 className="fw-bold display-5">👋 Welcome Back!</h1>
+          <h1 className="fw-bold display-5 d-flex align-items-center justify-content-center gap-3">
+            <UserCheck size={40} /> Welcome Back!
+          </h1>
           <p className="lead opacity-75 text-capitalize">{userName}</p>
         </div>
       </div>
@@ -31,7 +35,9 @@ const Dashboard = ({ session }) => {
               </p>
             </div>
             <div className="col-md-4 text-center text-md-end mt-3 mt-md-0">
-              <span className="badge bg-success px-3 py-2 rounded-pill">🟢 System Operational</span>
+              <span className="badge bg-success px-3 py-2 rounded-pill d-inline-flex align-items-center gap-1">
+                <CheckCircle size={14} /> System Operational
+              </span>
             </div>
           </div>
         </div>
@@ -51,7 +57,7 @@ const Dashboard = ({ session }) => {
               {/* Icon Bubble */}
               <div className="mx-auto mb-4 d-flex align-items-center justify-content-center rounded-circle shadow-sm"
                    style={{ width: '80px', height: '80px', backgroundColor: '#ffe5e5', color: '#dc3545' }}>
-                <span className="display-5">🔍</span>
+                <Search size={40} strokeWidth={1.5} />
               </div>
               
               <h4 className="fw-bold text-dark">Lost & Found</h4>
@@ -77,7 +83,7 @@ const Dashboard = ({ session }) => {
               {/* Icon Bubble */}
               <div className="mx-auto mb-4 d-flex align-items-center justify-content-center rounded-circle shadow-sm"
                    style={{ width: '80px', height: '80px', backgroundColor: '#e3f2fd', color: '#0057a8' }}>
-                <span className="display-5">📝</span>
+                <FileText size={40} strokeWidth={1.5} />
               </div>
               
               <h4 className="fw-bold text-dark">Complaints</h4>
@@ -103,7 +109,7 @@ const Dashboard = ({ session }) => {
               {/* Icon Bubble */}
               <div className="mx-auto mb-4 d-flex align-items-center justify-content-center rounded-circle shadow-sm"
                    style={{ width: '80px', height: '80px', backgroundColor: '#e8f5e9', color: '#198754' }}>
-                <span className="display-5">🤝</span>
+                <HeartHandshake size={40} strokeWidth={1.5} />
               </div>
               
               <h4 className="fw-bold text-dark">Volunteer</h4>

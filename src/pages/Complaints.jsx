@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../config/supabaseClient';
 import Swal from 'sweetalert2';
 import { useNavigate } from 'react-router-dom';
+// Emojis ki jagah professional icons import kiye hain
+import { Wrench, Edit2, AlertCircle, Building, Folder, PenLine, Send, Clock, Calendar, Trash2, CheckCircle, Wifi, Zap, Droplet, Armchair, FileText } from 'lucide-react';
 
 const Complaints = () => {
   const navigate = useNavigate();
@@ -126,12 +128,12 @@ const Complaints = () => {
 
   // Helper for Category Icons
   const getCategoryIcon = (cat) => {
-    if (!cat) return '📝';
-    if (cat.includes('Internet')) return '📶';
-    if (cat.includes('Electricity')) return '⚡';
-    if (cat.includes('Water')) return '💧';
-    if (cat.includes('Furniture')) return '🪑';
-    return '📝';
+    if (!cat) return <FileText size={32} />;
+    if (cat.includes('Internet')) return <Wifi size={32} />;
+    if (cat.includes('Electricity')) return <Zap size={32} />;
+    if (cat.includes('Water')) return <Droplet size={32} />;
+    if (cat.includes('Furniture')) return <Armchair size={32} />;
+    return <FileText size={32} />;
   };
 
   return (
@@ -139,7 +141,9 @@ const Complaints = () => {
       
       {/* --- Header Section --- */}
       <div className="py-5 text-white text-center shadow-sm" style={{ background: 'linear-gradient(135deg, #0057a8 0%, #003060 100%)' }}>
-        <h1 className="fw-bold display-5">🛠️ Support & Complaints</h1>
+        <h1 className="fw-bold display-5 d-flex justify-content-center align-items-center gap-3">
+          <Wrench size={48} /> Support & Complaints
+        </h1>
         <p className="lead opacity-75">Facing an issue? Submit a ticket and track its status.</p>
       </div>
 
@@ -149,8 +153,8 @@ const Complaints = () => {
         <div className="card shadow-lg border-0 rounded-4 mb-5 animate__animated animate__fadeInUp">
           <div className="card-body p-4 p-md-5 bg-white rounded-4">
             <div className="d-flex align-items-center mb-4">
-              <div className={`text-white rounded-circle d-flex align-items-center justify-content-center me-3 shadow ${editId ? 'bg-primary' : 'bg-danger'}`} style={{ width: '55px', height: '55px', fontSize: '24px' }}>
-                <i className={`bi ${editId ? 'bi-pencil' : 'bi-exclamation-lg'}`}>{editId ? '✏️' : '!'}</i>
+              <div className={`text-white rounded-circle d-flex align-items-center justify-content-center me-3 shadow ${editId ? 'bg-primary' : 'bg-danger'}`} style={{ width: '55px', height: '55px' }}>
+                {editId ? <Edit2 size={26} /> : <AlertCircle size={26} />}
               </div>
               <div>
                 <h4 className="fw-bold mb-0 text-dark">{editId ? 'Edit Your Ticket' : 'Submit New Ticket'}</h4>
@@ -165,7 +169,7 @@ const Complaints = () => {
                 <div className="col-md-6">
                   <label className="form-label fw-bold small text-secondary">Campus Location</label>
                   <div className="input-group">
-                    <span className="input-group-text bg-light border-0">🏫</span>
+                    <span className="input-group-text bg-light border-0"><Building size={20} className="text-muted" /></span>
                     <select 
                       className="form-select form-select-lg bg-light border-0" 
                       value={campus} 
@@ -187,7 +191,7 @@ const Complaints = () => {
                 <div className="col-md-6">
                   <label className="form-label fw-bold small text-secondary">Issue Category</label>
                   <div className="input-group">
-                    <span className="input-group-text bg-light border-0">📂</span>
+                    <span className="input-group-text bg-light border-0"><Folder size={20} className="text-muted" /></span>
                     <select 
                       className="form-select form-select-lg bg-light border-0" 
                       value={category} 
@@ -205,7 +209,7 @@ const Complaints = () => {
                 <div className="col-12">
                   <label className="form-label fw-bold small text-secondary">Problem Details</label>
                   <div className="input-group">
-                    <span className="input-group-text bg-light border-0">✍️</span>
+                    <span className="input-group-text bg-light border-0"><PenLine size={20} className="text-muted" /></span>
                     <input 
                       type="text"
                       className="form-control form-control-lg bg-light border-0" 
@@ -223,8 +227,8 @@ const Complaints = () => {
                       Cancel
                     </button>
                   )}
-                  <button type="submit" className={`btn btn-lg fw-bold text-white px-5 shadow-sm ${editId ? 'btn-primary' : ''}`} disabled={loading} style={{ backgroundColor: editId ? '' : '#0057a8' }}>
-                    {loading ? 'Processing...' : (editId ? 'Update Ticket' : '🚀 Submit Ticket')}
+                  <button type="submit" className={`btn btn-lg fw-bold text-white px-5 shadow-sm d-flex align-items-center gap-2 ${editId ? 'btn-primary' : ''}`} disabled={loading} style={{ backgroundColor: editId ? '' : '#0057a8' }}>
+                    {loading ? 'Processing...' : (editId ? 'Update Ticket' : <><Send size={18} /> Submit Ticket</>)}
                   </button>
                 </div>
               </div>
@@ -234,7 +238,7 @@ const Complaints = () => {
 
         {/* --- History Header --- */}
         <div className="d-flex align-items-center justify-content-between mb-4">
-          <h4 className="fw-bold text-dark m-0">🕒 Your Ticket History</h4>
+          <h4 className="fw-bold text-dark m-0 d-flex align-items-center gap-2"><Clock size={24} /> Your Ticket History</h4>
           <span className="badge bg-secondary rounded-pill">{complaints.length} Tickets</span>
         </div>
 
@@ -253,8 +257,8 @@ const Complaints = () => {
                   
                   {/* Header: Date & Status */}
                   <div className="d-flex justify-content-between align-items-start mb-3">
-                    <span className="text-muted small bg-light px-2 py-1 rounded">
-                      📅 {new Date(item.created_at).toLocaleDateString()}
+                    <span className="text-muted small bg-light px-2 py-1 rounded d-flex align-items-center gap-1">
+                      <Calendar size={12} /> {new Date(item.created_at).toLocaleDateString()}
                     </span>
                     <span className={`badge rounded-pill px-3 py-2 ${getStatusBadge(item.status)}`}>
                       {item.status}
@@ -263,14 +267,14 @@ const Complaints = () => {
 
                   {/* Title & Icon */}
                   <div className="d-flex align-items-center mb-2">
-                    <div className="fs-2 me-3">{getCategoryIcon(item.category)}</div>
+                    <div className="me-3 text-dark">{getCategoryIcon(item.category)}</div>
                     <h5 className="fw-bold text-dark mb-0">{item.category}</h5>
                   </div>
                   
                   {/* Campus Badge */}
-                  <div className="mb-3">
-                    <span className="badge bg-secondary bg-opacity-10 text-secondary border">
-                      🏫 {item.campus || 'Not specified'}
+                  <div className="mb-3 mt-3">
+                    <span className="badge bg-secondary bg-opacity-10 text-secondary border d-inline-flex align-items-center gap-1">
+                      <Building size={12} /> {item.campus || 'Not specified'}
                     </span>
                   </div>
 
@@ -284,16 +288,16 @@ const Complaints = () => {
                 <div className="card-footer bg-transparent border-top p-3">
                   {item.status === 'Resolved' ? (
                     <div className="d-flex justify-content-between align-items-center">
-                       <small className="text-success fw-bold"><i className="bi bi-check-circle-fill me-1"></i> Issue Resolved</small>
-                       <button onClick={() => handleDelete(item.id)} className="btn btn-sm text-danger opacity-75 hover-opacity-100 p-0">🗑️ Delete</button>
+                       <small className="text-success fw-bold d-flex align-items-center gap-1"><CheckCircle size={16} /> Issue Resolved</small>
+                       <button onClick={() => handleDelete(item.id)} className="btn btn-sm text-danger opacity-75 hover-opacity-100 p-0 d-flex align-items-center gap-1"><Trash2 size={16} /> Delete</button>
                     </div>
                   ) : (
                     <div className="d-flex gap-2">
-                      <button onClick={() => handleEdit(item)} className="btn btn-sm btn-light text-primary border w-50 fw-bold rounded-pill">
-                        ✏️ Edit
+                      <button onClick={() => handleEdit(item)} className="btn btn-sm btn-light text-primary border w-50 fw-bold rounded-pill d-flex justify-content-center align-items-center gap-2">
+                        <Edit2 size={16} /> Edit
                       </button>
-                      <button onClick={() => handleDelete(item.id)} className="btn btn-sm btn-light text-danger border w-50 fw-bold rounded-pill">
-                        🗑️ Delete
+                      <button onClick={() => handleDelete(item.id)} className="btn btn-sm btn-light text-danger border w-50 fw-bold rounded-pill d-flex justify-content-center align-items-center gap-2">
+                        <Trash2 size={16} /> Delete
                       </button>
                     </div>
                   )}
@@ -304,8 +308,8 @@ const Complaints = () => {
 
           {complaints.length === 0 && (
             <div className="col-12 text-center py-5">
-              <div className="display-1 text-muted opacity-25">✅</div>
-              <h4 className="text-muted mt-3">No complaints yet</h4>
+              <div className="text-muted opacity-25 mb-3"><CheckCircle size={60} /></div>
+              <h4 className="text-muted">No complaints yet</h4>
               <p className="text-muted small">Everything seems to be working perfectly!</p>
             </div>
           )}

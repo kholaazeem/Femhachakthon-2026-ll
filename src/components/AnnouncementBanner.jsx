@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../config/supabaseClient';
+import { Megaphone, X } from 'lucide-react'; 
 
 const AnnouncementBanner = () => {
   const [latestNotice, setLatestNotice] = useState(null);
-  const [isVisible, setIsVisible] = useState(true); // Close karne ke liye state
+  const [isVisible, setIsVisible] = useState(true); 
 
   useEffect(() => {
     const fetchNotice = async () => {
@@ -21,7 +22,7 @@ const AnnouncementBanner = () => {
     fetchNotice();
   }, []);
 
-  // Agar notice nahi hai ya user ne close kar diya hai to null return karo
+
   if (!latestNotice || !isVisible) return null;
 
   return (
@@ -30,8 +31,8 @@ const AnnouncementBanner = () => {
         
         {/* Left Side: Text */}
         <div className="d-flex align-items-center text-truncate">
-          <span className="badge bg-dark text-warning me-2 animate__animated animate__flash animate__infinite animate__slower">
-            📢 NEW
+          <span className="badge bg-dark text-warning me-2 animate__animated animate__flash animate__infinite animate__slower d-flex align-items-center gap-1">
+            <Megaphone size={12} /> NEW
           </span>
           <span className="fw-bold small text-truncate">
             <span className="text-uppercase me-1">{latestNotice.title}:</span>
@@ -42,11 +43,10 @@ const AnnouncementBanner = () => {
         {/* Right Side: Close Button */}
         <button 
           onClick={() => setIsVisible(false)}
-          className="btn btn-link text-dark p-0 ms-3 text-decoration-none"
-          style={{ fontSize: '1.2rem', lineHeight: 1 }}
+          className="btn btn-link text-dark p-0 ms-3 text-decoration-none d-flex align-items-center"
           title="Close"
         >
-          &times;
+          <X size={20} />
         </button>
 
       </div>
