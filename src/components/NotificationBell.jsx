@@ -12,47 +12,51 @@ const NotificationBell = ({ userEmail }) => {
   useEffect(() => {
     if (!userEmail) return;
 
-    console.log("🔔 Monitoring for:", userEmail);
+    // 1. INITIAL FETCH: Jab user login kare toh aakhri 5 posts database se utha lo
+    const fetchRecentPosts = async () => {
+      const { data, error } = await supabase
+        .from('lost_found_items')
+        .select('*')
+        .order('created_at', { ascending: false }) // Sab se naye pehle
+        .limit(5); // Sirf aakhri 5 dikhao
 
-    // FIX: Har dafa naya aur unique channel name banega taake connection drop na ho
-    const uniqueChannelName = `live-alerts-${Date.now()}`;
-    const channel = supabase.channel(uniqueChannelName);
+      if (!error && data) {
+        // Apni posts ko nikal kar baqi notifications mein daal do
+        const othersPosts = data.filter(item => item.user_email !== userEmail);
+        setNotifications(othersPosts);
+      }
+    };
 
-    channel
+    fetchRecentPosts(); // Login hotay hi ye function chalega
+
+    // 2. REALTIME LISTENER: Ab naye aane wale live signals suno
+    const channel = supabase.channel('global-alerts')
       .on(
         'postgres_changes',
-        { 
-          event: '*', // FIX: Sirf INSERT nahi, ab UPDATE/DELETE har cheez par signal aayega
-          schema: 'public', 
-          table: 'lost_found_items' 
-        },
+        { event: 'INSERT', schema: 'public', table: 'lost_found_items' },
         (payload) => {
-          console.log("💥 BINGO! DATABASE CHANGED:", payload); // Ab yeh zaroor aayega!
+          const newItem = payload.new;
 
-          // Hum sirf naye posts (INSERT) par notification dikhayenge
-          if (payload.eventType === 'INSERT') {
-            const newItem = payload.new;
-            
-            // Apni post par notification block karo
-            if (newItem.user_email !== userEmail) {
-              setNotifications((prev) => [newItem, ...prev]);
+          // Agar kisi doosre ne post ki hai, toh usay list mein add karo aur popup dikhao
+          if (newItem.user_email !== userEmail) {
+            setNotifications((prev) => [newItem, ...prev]);
 
-              Swal.fire({
-                toast: true,
-                position: 'top-end',
-                icon: 'info',
-                title: `New ${newItem.type} Item Alert!`,
-                text: newItem.title,
-                showConfirmButton: false,
-                timer: 4000
-              });
-            }
+            Swal.fire({
+              toast: true,
+              position: 'top-end',
+              icon: 'info',
+              title: `New Alert!`,
+              text: `${newItem.title} (${newItem.type})`,
+              showConfirmButton: false,
+              timer: 5000,
+              timerProgressBar: true,
+              background: '#fff',
+              color: '#333'
+            });
           }
         }
       )
-      .subscribe((status) => {
-        console.log(`📡 Status for ${uniqueChannelName}:`, status);
-      });
+      .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
@@ -62,8 +66,10 @@ const NotificationBell = ({ userEmail }) => {
   return (
     <div className="position-relative">
       <button 
-        className="btn text-white p-2 position-relative border-0 rounded-circle" 
+        className="btn text-white p-2 position-relative border-0 rounded-circle shadow-none transition-all" 
         style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}
+        onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.2)'}
+        onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'}
         onClick={() => setShowDropdown(!showDropdown)}
       >
         <Bell size={20} />
@@ -76,29 +82,33 @@ const NotificationBell = ({ userEmail }) => {
 
       {showDropdown && (
         <div className="position-absolute bg-white shadow-lg rounded-3 mt-2 border-0 overflow-hidden" 
-             style={{ right: '0', width: '280px', zIndex: 1050 }}>
-          <div className="p-2 px-3 bg-light border-bottom d-flex justify-content-between align-items-center">
-            <span className="fw-bold text-dark small">New Activity</span>
+             style={{ right: '0', width: '290px', zIndex: 1050 }}>
+          
+          <div className="p-3 bg-light border-bottom d-flex justify-content-between align-items-center">
+            <span className="fw-bold text-dark small">Recent Updates</span>
             {notifications.length > 0 && (
-              <button className="btn btn-sm text-danger p-0 border-0" onClick={() => setNotifications([])}>
-                <Trash2 size={14} />
+              <button className="btn btn-sm text-danger p-0 border-0" onClick={() => setNotifications([])} title="Clear All">
+                <Trash2 size={16} />
               </button>
             )}
           </div>
+
           <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
             {notifications.length === 0 ? (
-              <div className="p-4 text-center text-muted small">No new updates</div>
+              <div className="p-4 text-center text-muted small">No recent updates</div>
             ) : (
               notifications.map((item, index) => (
                 <div 
                   key={index} 
                   className="p-3 border-bottom hover-bg-light" 
-                  style={{ cursor: 'pointer' }}
+                  style={{ cursor: 'pointer', transition: '0.2s' }}
                   onClick={() => { navigate('/lost-found'); setShowDropdown(false); }}
                 >
                   <div className="d-flex align-items-center gap-2 mb-1">
-                    <span className={`badge ${item.type === 'Lost' ? 'bg-danger' : 'bg-success'}`} style={{fontSize: '0.6rem'}}>{item.type}</span>
-                    <span className="fw-bold text-dark small text-truncate">{item.title}</span>
+                    <span className={`badge ${item.type === 'Lost' ? 'bg-danger' : 'bg-success'}`} style={{fontSize: '0.6rem'}}>
+                      {item.type}
+                    </span>
+                    <span className="fw-bold text-dark small text-truncate" style={{maxWidth: '180px'}}>{item.title}</span>
                   </div>
                   <p className="mb-0 text-muted" style={{ fontSize: '0.7rem' }}>By: {item.user_email}</p>
                 </div>
