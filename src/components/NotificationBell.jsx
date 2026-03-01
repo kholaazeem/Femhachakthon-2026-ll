@@ -10,49 +10,51 @@ const NotificationBell = ({ userEmail }) => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    console.log("🔔 Bell System Active for:", userEmail);
     if (!userEmail) return;
 
-    // Naya Channel Name (Unique)
-    const channel = supabase.channel('lf-global-alerts');
+    console.log("🔔 Monitoring for:", userEmail);
+
+    // FIX: Har dafa naya aur unique channel name banega taake connection drop na ho
+    const uniqueChannelName = `live-alerts-${Date.now()}`;
+    const channel = supabase.channel(uniqueChannelName);
 
     channel
       .on(
         'postgres_changes',
         { 
-          event: 'INSERT', 
+          event: '*', // FIX: Sirf INSERT nahi, ab UPDATE/DELETE har cheez par signal aayega
           schema: 'public', 
           table: 'lost_found_items' 
         },
         (payload) => {
-          // Sab se pehle console check karein
-          console.log("🔥 DATABASE CHANGE DETECTED!", payload);
+          console.log("💥 BINGO! DATABASE CHANGED:", payload); // Ab yeh zaroor aayega!
 
-          const newItem = payload.new;
-          
-          // Agar email mismatch ho ya admin ho toh dikhao
-          if (newItem.user_email !== userEmail) {
-            setNotifications((prev) => [newItem, ...prev]);
+          // Hum sirf naye posts (INSERT) par notification dikhayenge
+          if (payload.eventType === 'INSERT') {
+            const newItem = payload.new;
+            
+            // Apni post par notification block karo
+            if (newItem.user_email !== userEmail) {
+              setNotifications((prev) => [newItem, ...prev]);
 
-            Swal.fire({
-              toast: true,
-              position: 'top-end',
-              icon: 'info',
-              title: `New ${newItem.type} Item`,
-              text: newItem.title,
-              showConfirmButton: false,
-              timer: 4000,
-              timerProgressBar: true
-            });
+              Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: 'info',
+                title: `New ${newItem.type} Item Alert!`,
+                text: newItem.title,
+                showConfirmButton: false,
+                timer: 4000
+              });
+            }
           }
         }
       )
       .subscribe((status) => {
-        console.log("📡 Subscription Status:", status);
+        console.log(`📡 Status for ${uniqueChannelName}:`, status);
       });
 
     return () => {
-      console.log("🔌 Channel Closed");
       supabase.removeChannel(channel);
     };
   }, [userEmail]);
@@ -73,9 +75,8 @@ const NotificationBell = ({ userEmail }) => {
       </button>
 
       {showDropdown && (
-        <div className="position-absolute bg-white shadow-lg rounded-3 mt-2 border-0 overflow-hidden animate__animated animate__fadeIn" 
+        <div className="position-absolute bg-white shadow-lg rounded-3 mt-2 border-0 overflow-hidden" 
              style={{ right: '0', width: '280px', zIndex: 1050 }}>
-          
           <div className="p-2 px-3 bg-light border-bottom d-flex justify-content-between align-items-center">
             <span className="fw-bold text-dark small">New Activity</span>
             {notifications.length > 0 && (
@@ -84,7 +85,6 @@ const NotificationBell = ({ userEmail }) => {
               </button>
             )}
           </div>
-
           <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
             {notifications.length === 0 ? (
               <div className="p-4 text-center text-muted small">No new updates</div>
@@ -100,7 +100,7 @@ const NotificationBell = ({ userEmail }) => {
                     <span className={`badge ${item.type === 'Lost' ? 'bg-danger' : 'bg-success'}`} style={{fontSize: '0.6rem'}}>{item.type}</span>
                     <span className="fw-bold text-dark small text-truncate">{item.title}</span>
                   </div>
-                  <p className="mb-0 text-muted" style={{ fontSize: '0.7rem' }}>Posted by: {item.user_email}</p>
+                  <p className="mb-0 text-muted" style={{ fontSize: '0.7rem' }}>By: {item.user_email}</p>
                 </div>
               ))
             )}
