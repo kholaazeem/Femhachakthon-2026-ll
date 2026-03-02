@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../config/supabaseClient';
 import Swal from 'sweetalert2';
 import { useNavigate } from 'react-router-dom';
-// Emojis ki jagah professional icons import kiye hain
 import { Search, Plus, Edit2, Send, Package, CheckCircle, Phone, Sparkles, Trash2, Clock, Inbox } from 'lucide-react';
 
 const LostFound = () => {
@@ -87,14 +86,28 @@ const LostFound = () => {
 
         Swal.fire({ icon: 'success', title: 'Updated!', text: 'Your post has been updated.', confirmButtonColor: '#66b032' });
       } else {
-        // Create New Post
-        const { error } = await supabase.from('lost_found_items').insert([{
+        // --- CREATE NEW POST ---
+        
+        // 1. Save post in lost_found_items table
+        const { error: postError } = await supabase.from('lost_found_items').insert([{
           title, description, type, contact,
           status: 'Pending',
           user_email: user.email,
           image_url: uploadedImageUrl 
         }]);
-        if (error) throw error;
+        
+        if (postError) throw postError;
+
+        // 2. 🚀 Save signal in notifications table
+        const { error: notifError } = await supabase.from('notifications').insert([{
+          title: `New ${type} Alert!`,
+          message: `${title} reported by community member.`,
+          user_email: user.email 
+        }]);
+
+        if (notifError) {
+          console.error("❌ Notification Table Error:", notifError.message);
+        }
 
         Swal.fire({ icon: 'success', title: 'Post Live!', text: 'Your item has been listed.', confirmButtonColor: '#66b032' });
       }
@@ -117,7 +130,7 @@ const LostFound = () => {
     setDescription(item.description);
     setType(item.type);
     setContact(item.contact);
-    window.scrollTo({ top: 0, behavior: 'smooth' }); // Scroll to form
+    window.scrollTo({ top: 0, behavior: 'smooth' }); 
   };
 
   const cancelEdit = () => {

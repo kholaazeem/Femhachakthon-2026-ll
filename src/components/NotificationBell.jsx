@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../config/supabaseClient';
-import { Bell, Trash2 } from 'lucide-react'; 
+import { Bell, Trash2, X } from 'lucide-react'; 
 import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 
@@ -9,47 +9,62 @@ const NotificationBell = ({ userEmail }) => {
   const [showDropdown, setShowDropdown] = useState(false);
   const navigate = useNavigate();
 
+  // --- LOCAL STATE (Har user ka apna data) ---
+  const [hiddenIds, setHiddenIds] = useState([]);
+  const [readIds, setReadIds] = useState([]);
+
   useEffect(() => {
     if (!userEmail) return;
 
-    // 1. INITIAL FETCH: Jab user login kare toh aakhri 5 posts database se utha lo
-    const fetchRecentPosts = async () => {
-      const { data, error } = await supabase
-        .from('lost_found_items')
-        .select('*')
-        .order('created_at', { ascending: false }) // Sab se naye pehle
-        .limit(5); // Sirf aakhri 5 dikhao
+    // 1. User ki read aur hidden notifications browser se uthao
+    const localHidden = JSON.parse(localStorage.getItem(`hidden_notifs_${userEmail}`) || '[]');
+    const localRead = JSON.parse(localStorage.getItem(`read_notifs_${userEmail}`) || '[]');
+    setHiddenIds(localHidden);
+    setReadIds(localRead);
 
-      if (!error && data) {
-        // Apni posts ko nikal kar baqi notifications mein daal do
-        const othersPosts = data.filter(item => item.user_email !== userEmail);
-        setNotifications(othersPosts);
+    // 2. User ki Account Creation Date check karo (ISSUE 3 FIX)
+    const initData = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        fetchNotifications(user.created_at);
       }
     };
 
-    fetchRecentPosts(); // Login hotay hi ye function chalega
+    const fetchNotifications = async (userCreatedAt) => {
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .gte('created_at', userCreatedAt) // Sirf wo posts jo account banne ke baad aayin
+        .order('created_at', { ascending: false })
+        .limit(15);
 
-    // 2. REALTIME LISTENER: Ab naye aane wale live signals suno
-    const channel = supabase.channel('global-alerts')
+      if (!error && data) {
+        setNotifications(data);
+      }
+    };
+
+    initData();
+
+    // 3. REALTIME LISTENER
+    const channel = supabase.channel('realtime-notifications')
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'lost_found_items' },
+        { event: 'INSERT', schema: 'public', table: 'notifications' },
         (payload) => {
-          const newItem = payload.new;
+          const newNotif = payload.new;
 
-          // Agar kisi doosre ne post ki hai, toh usay list mein add karo aur popup dikhao
-          if (newItem.user_email !== userEmail) {
-            setNotifications((prev) => [newItem, ...prev]);
+          // Khud ki post par alert na do
+          if (newNotif.user_email !== userEmail) {
+            setNotifications((prev) => [newNotif, ...prev]);
 
             Swal.fire({
               toast: true,
               position: 'top-end',
               icon: 'info',
-              title: `New Alert!`,
-              text: `${newItem.title} (${newItem.type})`,
+              title: newNotif.title,
+              text: 'Check your notifications',
               showConfirmButton: false,
-              timer: 5000,
-              timerProgressBar: true,
+              timer: 4000,
               background: '#fff',
               color: '#333'
             });
@@ -63,54 +78,111 @@ const NotificationBell = ({ userEmail }) => {
     };
   }, [userEmail]);
 
+  // --- LOGIC: Filter visible and unread notifications ---
+  // Jo hide ho chuki hain, ya jo khud ki post hain unhe list se nikalo
+  const visibleNotifications = notifications.filter(
+    (n) => !hiddenIds.includes(n.id) && n.user_email !== userEmail
+  );
+
+  // Unread badge count
+  const unreadCount = visibleNotifications.filter((n) => !readIds.includes(n.id)).length;
+
+  // --- ACTIONS ---
+
+  // Jab Bell par click ho (ISSUE 1 FIX)
+  const handleBellClick = () => {
+    setShowDropdown(!showDropdown);
+    // Agar dropdown open kar raha hai aur unread msgs hain, toh sabko 'Read' mark kar do
+    if (!showDropdown && unreadCount > 0) {
+      const allVisibleIds = visibleNotifications.map(n => n.id);
+      const updatedReadIds = [...new Set([...readIds, ...allVisibleIds])];
+      
+      setReadIds(updatedReadIds);
+      localStorage.setItem(`read_notifs_${userEmail}`, JSON.stringify(updatedReadIds));
+    }
+  };
+
+  // Har notification ka apna Delete button (ISSUE 2 FIX)
+  const handleDeleteSingle = (e, id) => {
+    e.stopPropagation(); // Parent par click hone se roko
+    const updatedHidden = [...hiddenIds, id];
+    setHiddenIds(updatedHidden);
+    localStorage.setItem(`hidden_notifs_${userEmail}`, JSON.stringify(updatedHidden));
+  };
+
+  // Clear All button
+  const handleClearAll = () => {
+    const allVisibleIds = visibleNotifications.map(n => n.id);
+    const updatedHidden = [...new Set([...hiddenIds, ...allVisibleIds])];
+    
+    setHiddenIds(updatedHidden);
+    localStorage.setItem(`hidden_notifs_${userEmail}`, JSON.stringify(updatedHidden));
+    setShowDropdown(false);
+  };
+
+  // Notification par click karna
+  const handleItemClick = () => {
+    navigate('/lost-found');
+    setShowDropdown(false);
+  };
+
   return (
     <div className="position-relative">
       <button 
-        className="btn text-white p-2 position-relative border-0 rounded-circle shadow-none transition-all" 
+        className="btn text-white p-2 position-relative border-0 rounded-circle shadow-none" 
         style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}
-        onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.2)'}
-        onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'}
-        onClick={() => setShowDropdown(!showDropdown)}
+        onClick={handleBellClick}
       >
         <Bell size={20} />
-        {notifications.length > 0 && (
+        {unreadCount > 0 && (
           <span className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger shadow-sm" style={{ fontSize: '0.6rem' }}>
-            {notifications.length}
+            {unreadCount}
           </span>
         )}
       </button>
 
       {showDropdown && (
         <div className="position-absolute bg-white shadow-lg rounded-3 mt-2 border-0 overflow-hidden" 
-             style={{ right: '0', width: '290px', zIndex: 1050 }}>
+             style={{ right: '0', width: '300px', zIndex: 1050 }}>
           
           <div className="p-3 bg-light border-bottom d-flex justify-content-between align-items-center">
-            <span className="fw-bold text-dark small">Recent Updates</span>
-            {notifications.length > 0 && (
-              <button className="btn btn-sm text-danger p-0 border-0" onClick={() => setNotifications([])} title="Clear All">
-                <Trash2 size={16} />
+            <span className="fw-bold text-dark small">Notifications</span>
+            {visibleNotifications.length > 0 && (
+              <button 
+                className="btn btn-sm text-danger p-0 border-0 fw-bold small" 
+                onClick={handleClearAll}
+                title="Clear All"
+              >
+                Clear All
               </button>
             )}
           </div>
 
           <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
-            {notifications.length === 0 ? (
-              <div className="p-4 text-center text-muted small">No recent updates</div>
+            {visibleNotifications.length === 0 ? (
+              <div className="p-4 text-center text-muted small">No new updates</div>
             ) : (
-              notifications.map((item, index) => (
+              visibleNotifications.map((item) => (
                 <div 
-                  key={index} 
-                  className="p-3 border-bottom hover-bg-light" 
-                  style={{ cursor: 'pointer', transition: '0.2s' }}
-                  onClick={() => { navigate('/lost-found'); setShowDropdown(false); }}
+                  key={item.id} 
+                  className="p-3 border-bottom hover-bg-light position-relative" 
+                  style={{ cursor: 'pointer', transition: '0.2s', backgroundColor: readIds.includes(item.id) ? '#fff' : '#f0f8ff' }}
+                  onClick={() => handleItemClick()}
                 >
-                  <div className="d-flex align-items-center gap-2 mb-1">
-                    <span className={`badge ${item.type === 'Lost' ? 'bg-danger' : 'bg-success'}`} style={{fontSize: '0.6rem'}}>
-                      {item.type}
-                    </span>
-                    <span className="fw-bold text-dark small text-truncate" style={{maxWidth: '180px'}}>{item.title}</span>
+                  <div className="d-flex align-items-start justify-content-between">
+                    <div className="pe-3">
+                      <h6 className="fw-bold text-dark small mb-1">{item.title}</h6>
+                      <p className="mb-0 text-muted" style={{ fontSize: '0.75rem' }}>{item.message}</p>
+                    </div>
+                    {/* Individual Delete Button */}
+                    <button 
+                      className="btn btn-sm p-1 text-muted hover-danger border-0" 
+                      onClick={(e) => handleDeleteSingle(e, item.id)}
+                      title="Remove notification"
+                    >
+                      <X size={16} />
+                    </button>
                   </div>
-                  <p className="mb-0 text-muted" style={{ fontSize: '0.7rem' }}>By: {item.user_email}</p>
                 </div>
               ))
             )}

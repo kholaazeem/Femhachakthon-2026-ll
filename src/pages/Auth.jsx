@@ -7,8 +7,8 @@ const Auth = () => {
   const [loading, setLoading] = useState(false);
   
   // Form States
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('admin@gmail.com');
+  const [password, setPassword] = useState('admin123');
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   
@@ -117,7 +117,7 @@ const Auth = () => {
                 type="email" 
                 className="form-control" 
                 id="floatingEmail" 
-                placeholder="name@example.com"
+                placeholder={isLogin ? "admin@gmail.com" : "name@example.com"}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required 
@@ -129,9 +129,9 @@ const Auth = () => {
             <div className="form-floating mb-4 position-relative">
               <input 
                 type={showPassword ? "text" : "password"} 
-                className="form-control pe-5" // pe-5 adds padding to the right so text doesn't overlap icon
+                className="form-control pe-5" 
                 id="floatingPassword" 
-                placeholder="Password"
+                placeholder={isLogin ? "admin123" : "Password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required 
