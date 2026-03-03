@@ -94,19 +94,74 @@ const Admin = () => {
     }
   };
 
-  const updateStatus = async (id, newStatus) => {
-    await supabase.from('complaints').update({ status: newStatus }).eq('id', id);
-    fetchData();
-    const toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000 });
-    toast.fire({ icon: 'success', title: `Status updated to ${newStatus}` });
+  // 🚀 ADMIN PANEL: Resolve Complaint & Send Notification
+  const updateStatus = async (complaintItem, newStatus) => {
+    const { error } = await supabase.from('complaints').update({ status: newStatus }).eq('id', complaintItem.id).select();
+    
+    if (!error) {
+      // Notification Logic
+      if (newStatus === 'Resolved') {
+        const targetUser = complaintItem.user_email ? complaintItem.user_email.trim().toLowerCase() : '';
+        if (targetUser) {
+          await supabase.from('notifications').insert([{
+            title: `Complaint Resolved! ✅`,
+            message: `Your issue regarding ${complaintItem.category} has been resolved by Admin.`,
+            user_email: 'admin@gmail.com',
+            target_email: targetUser
+          }]);
+        }
+      }
+
+      fetchData();
+      const toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000 });
+      toast.fire({ icon: 'success', title: `Status updated to ${newStatus}` });
+    }
   };
 
-  // --- New Action: Approve Volunteer ---
-  const approveVolunteer = async (id) => {
-    await supabase.from('volunteers').update({ status: 'Approved' }).eq('id', id);
-    fetchData();
-    const toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000 });
-    toast.fire({ icon: 'success', title: `Volunteer Approved!` });
+  // 🚀 ADMIN PANEL: Approve Volunteer & Send Notification
+  const approveVolunteer = async (volItem) => {
+    const { error } = await supabase.from('volunteers').update({ status: 'Approved' }).eq('id', volItem.id).select();
+    
+    if (!error) {
+      // Notification Logic
+      const targetUser = volItem.user_email ? volItem.user_email.trim().toLowerCase() : '';
+      if (targetUser) {
+        await supabase.from('notifications').insert([{
+          title: `Volunteer ID Approved! 🎉`,
+          message: `Admin has approved your request for ${volItem.event}.`,
+          user_email: 'admin@gmail.com',
+          target_email: targetUser
+        }]);
+      }
+
+      fetchData();
+      const toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000 });
+      toast.fire({ icon: 'success', title: `Volunteer Approved!` });
+    }
+  };
+
+  // 🚀 ADMIN PANEL: Resolve Lost & Found Item & Send Notification
+  const resolveLostFoundItem = async (lfItem) => {
+    const { error } = await supabase.from('lost_found_items').update({ status: 'Recovered' }).eq('id', lfItem.id).select();
+    
+    if (!error) {
+      // Notification Logic
+      const targetUser = lfItem.user_email ? lfItem.user_email.trim().toLowerCase() : '';
+      if (targetUser) {
+        await supabase.from('notifications').insert([{
+          title: `Item Recovered! 🎊`,
+          message: `Your posted item "${lfItem.title}" has been marked as recovered by Admin.`,
+          user_email: 'admin@gmail.com',
+          target_email: targetUser
+        }]);
+      }
+
+      fetchData();
+      const toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000 });
+      toast.fire({ icon: 'success', title: `Item marked as Recovered!` });
+    } else {
+      Swal.fire('Error', error.message, 'error');
+    }
   };
 
   if (loading) return <div className="text-center mt-5"><div className="spinner-border text-primary"></div></div>;
@@ -227,11 +282,11 @@ const Admin = () => {
                         <td>
                           <div className="d-flex gap-2">
                             {v.status !== 'Approved' && (
-                              <button className="btn btn-sm btn-outline-success d-flex align-items-center gap-1" onClick={() => approveVolunteer(v.id)} title="Approve">
+                              <button className="btn btn-sm btn-outline-success d-flex align-items-center gap-1" onClick={() => approveVolunteer(v)} title="Approve">
                                 <CheckCircle size={16}/> Approve
                               </button>
                             )}
-                            <button className="btn btn-sm btn-outline-danger p-1" onClick={() => deleteItem('volunteers', v.id)} title="Delete">
+                            <button className="btn btn-sm btn-outline-danger p-1 border-0" onClick={() => deleteItem('volunteers', v.id)} title="Delete">
                               <Trash2 size={18}/>
                             </button>
                           </div>
@@ -268,7 +323,7 @@ const Admin = () => {
                         <td>
                           <div className="d-flex gap-2">
                             {c.status !== 'Resolved' && (
-                              <button className="btn btn-sm btn-success rounded-pill px-3 d-flex align-items-center gap-1" onClick={() => updateStatus(c.id, 'Resolved')}>
+                              <button className="btn btn-sm btn-success rounded-pill px-3 d-flex align-items-center gap-1" onClick={() => updateStatus(c, 'Resolved')}>
                                 <CheckCircle size={16}/> Solve
                               </button>
                             )}
@@ -289,25 +344,59 @@ const Admin = () => {
           {activeTab === 'items' && (
             <div>
               <h4 className="fw-bold mb-4 d-flex align-items-center gap-2"><Search size={24} className="text-danger"/> Lost & Found Items</h4>
-              <div className="row g-3">
-                {items.map(i => (
-                  <div className="col-md-4 col-lg-3" key={i.id}>
-                    <div className="card h-100 border shadow-sm">
-                      <div className="card-body">
-                        <div className="d-flex justify-content-between mb-2">
-                          <span className={`badge ${i.type === 'Lost' ? 'bg-danger' : 'bg-success'}`}>{i.type}</span>
-                          <span className={`badge ${i.status === 'Pending' ? 'bg-warning text-dark' : 'bg-secondary'}`}>{i.status}</span>
-                        </div>
-                        <h6 className="fw-bold">{i.title}</h6>
-                        <p className="small text-muted text-truncate">{i.description}</p>
-                        <p className="small mb-3 d-flex align-items-center gap-1"><Phone size={14}/> {i.contact}</p>
-                        <button className="btn btn-sm btn-outline-danger w-100 d-flex justify-content-center align-items-center gap-2" onClick={() => deleteItem('lost_found_items', i.id)}>
-                          <Trash2 size={16}/> Remove
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+              <div className="table-responsive">
+                <table className="table table-hover align-middle">
+                  <thead className="table-light">
+                    <tr>
+                      <th>Date</th>
+                      <th>Item Details</th>
+                      <th>Type & Contact</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {items.map(i => (
+                      <tr key={i.id}>
+                        <td className="small text-muted">{new Date(i.created_at).toLocaleDateString()}</td>
+                        <td>
+                          <div className="fw-bold text-dark">{i.title}</div>
+                          <div className="text-muted small" style={{maxWidth: '300px'}}>{i.description}</div>
+                        </td>
+                        <td>
+                          <span className={`badge mb-1 ${i.type === 'Lost' ? 'bg-danger' : 'bg-success'}`}>{i.type}</span>
+                          <div className="font-monospace small d-flex align-items-center gap-1 mt-1"><Phone size={14}/> {i.contact}</div>
+                        </td>
+                        <td>
+                          <span className={`badge rounded-pill ${i.status === 'Pending' ? 'bg-warning text-dark' : 'bg-secondary'}`}>
+                            {i.status}
+                          </span>
+                        </td>
+                        <td>
+                          <div className="d-flex gap-2">
+                            {i.status === 'Pending' && (
+                              <button 
+                                className="btn btn-sm btn-outline-success d-flex align-items-center gap-1" 
+                                onClick={() => resolveLostFoundItem(i)}
+                                title="Resolve"
+                              >
+                                <CheckCircle size={16}/> Resolve
+                              </button>
+                            )}
+                            <button 
+                              className="btn btn-sm btn-outline-danger p-1 border-0" 
+                              onClick={() => deleteItem('lost_found_items', i.id)}
+                              title="Delete"
+                            >
+                              <Trash2 size={18}/>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {items.length === 0 && <p className="text-muted mt-3">No lost or found items reported.</p>}
               </div>
             </div>
           )}

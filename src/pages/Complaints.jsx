@@ -2,13 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../config/supabaseClient';
 import Swal from 'sweetalert2';
 import { useNavigate } from 'react-router-dom';
-// Emojis ki jagah professional icons import kiye hain
-import { Wrench, Edit2, AlertCircle, Building, Folder, PenLine, Send, Clock, Calendar, Trash2, CheckCircle, Wifi, Zap, Droplet, Armchair, FileText } from 'lucide-react';
+import { Wrench, Edit2, AlertCircle, Building, Folder, PenLine, Send, Clock, Calendar, Trash2, CheckCircle, Wifi, Zap, Droplet, Armchair, FileText, User } from 'lucide-react';
 
 const Complaints = () => {
   const navigate = useNavigate();
   const [complaints, setComplaints] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [currentUserEmail, setCurrentUserEmail] = useState('');
 
   // Form States
   const [campus, setCampus] = useState('Bahadurabad (Head Office)');
@@ -18,18 +19,29 @@ const Complaints = () => {
   // Edit State
   const [editId, setEditId] = useState(null);
 
-  // --- Fetch Data ---
+  // --- Fetch Data (Smart Logic) ---
   const fetchComplaints = async () => {
     const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    setCurrentUserEmail(user.email);
     
-    const { data, error } = await supabase
+    let query = supabase
       .from('complaints')
       .select('*')
-      .eq('user_email', user.email) 
       .order('created_at', { ascending: false });
 
+    // Agar Admin nahi hai, toh sirf uski apni complaints dikhao
+    if (user.email !== 'admin@gmail.com') {
+      query = query.eq('user_email', user.email);
+      setIsAdmin(false);
+    } else {
+      setIsAdmin(true); // Admin ko sab dikhega
+    }
+
+    const { data, error } = await query;
     if (error) console.log('Error:', error);
-    else setComplaints(data);
+    else setComplaints(data || []);
   };
 
   useEffect(() => {
@@ -42,8 +54,6 @@ const Complaints = () => {
     setLoading(true);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-
       if (editId) {
         // Update Existing Ticket
         const { error } = await supabase.from('complaints').update({
@@ -59,10 +69,21 @@ const Complaints = () => {
           category,
           description,
           status: 'Submitted',
-          user_email: user.email
+          user_email: currentUserEmail
         }]);
         
         if (error) throw error;
+
+        // 🚀 SMART NOTIFICATION: Sirf Admin ko alert bhejo ke nayi complaint aayi hai
+        const { error: notifError } = await supabase.from('notifications').insert([{
+          title: `New Ticket: ${category}`,
+          message: `${currentUserEmail} submitted an issue from ${campus}.`,
+          user_email: currentUserEmail,
+          target_email: 'admin@gmail.com' // 🎯 Target Admin
+        }]);
+
+        if (notifError) console.error("Notification Error:", notifError.message);
+
         Swal.fire({ icon: 'success', title: 'Ticket Created!', text: 'Admin will review your issue shortly.', confirmButtonColor: '#66b032' });
       }
 
@@ -86,7 +107,7 @@ const Complaints = () => {
     setCampus(item.campus || 'Bahadurabad (Head Office)');
     setCategory(item.category);
     setDescription(item.description);
-    window.scrollTo({ top: 0, behavior: 'smooth' }); // Scroll up to form
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const cancelEdit = () => {
@@ -114,6 +135,67 @@ const Complaints = () => {
         Swal.fire('Deleted!', 'Your ticket has been removed.', 'success');
         fetchComplaints();
       }
+    }
+  };
+
+  // 🚀 ADMIN ACTION: Mark as Resolved & Send Notification (UPDATED WITH LOGS)
+  // 🚀 ADMIN ACTION: Mark as Resolved & Send Notification (REVERSED ORDER)
+  const handleResolve = async (item) => {
+    try {
+      console.log("1. Admin ne Resolve button click kiya!");
+
+      // 1. Email nikal kar clean karo
+      const targetUser = item.user_email ? item.user_email.trim().toLowerCase() : '';
+      console.log("2. Target Email (Jisko Notif jayegi):", targetUser);
+
+      if (!targetUser) {
+        Swal.fire('Error', 'Is complaint mein user ki email nahi hai!', 'error');
+        return;
+      }
+
+      // ---------------------------------------------------------
+      // 🌟 STEP 1: PEHLE NOTIFICATION INSERT KAREIN
+      // ---------------------------------------------------------
+      console.log("3. Notification insert ho rahi hai...");
+      const { error: notifError } = await supabase
+        .from('notifications')
+        .insert([{
+          title: `Complaint Resolved! ✅`,
+          message: `Your issue regarding ${item.category} has been resolved by Admin.`,
+          user_email: 'admin@gmail.com', // Sender
+          target_email: targetUser       // Receiver
+        }]);
+
+      if (notifError) {
+        console.error("❌ Notification Table Error:", notifError);
+        Swal.fire('Error', `Notification insert fail: ${notifError.message}`, 'error');
+        return; // Agar error aya toh code yahi rok do
+      }
+      console.log("4. ✅ NOTIFICATION INSERT SUCCESSFUL!");
+
+      // ---------------------------------------------------------
+      // 🌟 STEP 2: USKE BAAD COMPLAINT KA STATUS UPDATE KAREIN
+      // ---------------------------------------------------------
+      console.log("5. Ab complaint ka status 'Resolved' kar rahe hain...");
+      const { error: updateError } = await supabase
+        .from('complaints')
+        .update({ status: 'Resolved' })
+        .eq('id', item.id);
+
+      if (updateError) {
+        console.error("❌ Complaint Update Error:", updateError);
+        Swal.fire('Error', `Status update fail: ${updateError.message}`, 'error');
+        return;
+      }
+      console.log("6. ✅ COMPLAINT UPDATE SUCCESSFUL!");
+
+      // Sab theek ho gaya toh data refresh kardo aur popup dikhao
+      fetchComplaints();
+      Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Resolved & Notified!', showConfirmButton: false, timer: 2500 });
+
+    } catch (err) {
+      console.error("❌ System Error:", err);
+      Swal.fire('Error', 'Koi anjana masla aa gaya!', 'error');
     }
   };
 
@@ -150,95 +232,79 @@ const Complaints = () => {
       <div className="container mt-n5" style={{ marginTop: '-40px' }}>
         
         {/* --- Submission Form Card --- */}
-        <div className="card shadow-lg border-0 rounded-4 mb-5 animate__animated animate__fadeInUp">
-          <div className="card-body p-4 p-md-5 bg-white rounded-4">
-            <div className="d-flex align-items-center mb-4">
-              <div className={`text-white rounded-circle d-flex align-items-center justify-content-center me-3 shadow ${editId ? 'bg-primary' : 'bg-danger'}`} style={{ width: '55px', height: '55px' }}>
-                {editId ? <Edit2 size={26} /> : <AlertCircle size={26} />}
+        {!isAdmin && (
+          <div className="card shadow-lg border-0 rounded-4 mb-5 animate__animated animate__fadeInUp">
+            <div className="card-body p-4 p-md-5 bg-white rounded-4">
+              <div className="d-flex align-items-center mb-4">
+                <div className={`text-white rounded-circle d-flex align-items-center justify-content-center me-3 shadow ${editId ? 'bg-primary' : 'bg-danger'}`} style={{ width: '55px', height: '55px' }}>
+                  {editId ? <Edit2 size={26} /> : <AlertCircle size={26} />}
+                </div>
+                <div>
+                  <h4 className="fw-bold mb-0 text-dark">{editId ? 'Edit Your Ticket' : 'Submit New Ticket'}</h4>
+                  <small className="text-muted">{editId ? 'Update your complaint details below.' : 'Describe your issue clearly for faster resolution.'}</small>
+                </div>
               </div>
-              <div>
-                <h4 className="fw-bold mb-0 text-dark">{editId ? 'Edit Your Ticket' : 'Submit New Ticket'}</h4>
-                <small className="text-muted">{editId ? 'Update your complaint details below.' : 'Describe your issue clearly for faster resolution.'}</small>
-              </div>
-            </div>
 
-            <form onSubmit={handleSubmit}>
-              <div className="row g-4">
-                
-                {/* Campus Dropdown */}
-                <div className="col-md-6">
-                  <label className="form-label fw-bold small text-secondary">Campus Location</label>
-                  <div className="input-group">
-                    <span className="input-group-text bg-light border-0"><Building size={20} className="text-muted" /></span>
-                    <select 
-                      className="form-select form-select-lg bg-light border-0" 
-                      value={campus} 
-                      onChange={(e) => setCampus(e.target.value)}
-                    >
-                      <option>Bahadurabad (Head Office)</option>
-                      <option>Gulshan Campus</option>
-                      <option>Nipa Campus</option>
-                      <option>Johar Campus</option>
-                      <option>Malir Campus</option>
-                      <option>Numaish Campus</option>
-                      <option>Saddar Campus</option>
-                      <option>Other</option>
-                    </select>
+              <form onSubmit={handleSubmit}>
+                <div className="row g-4">
+                  <div className="col-md-6">
+                    <label className="form-label fw-bold small text-secondary">Campus Location</label>
+                    <div className="input-group">
+                      <span className="input-group-text bg-light border-0"><Building size={20} className="text-muted" /></span>
+                      <select className="form-select form-select-lg bg-light border-0" value={campus} onChange={(e) => setCampus(e.target.value)}>
+                        <option>Bahadurabad (Head Office)</option>
+                        <option>Gulshan Campus</option>
+                        <option>Nipa Campus</option>
+                        <option>Johar Campus</option>
+                        <option>Malir Campus</option>
+                        <option>Numaish Campus</option>
+                        <option>Saddar Campus</option>
+                        <option>Other</option>
+                      </select>
+                    </div>
                   </div>
-                </div>
 
-                {/* Category Dropdown */}
-                <div className="col-md-6">
-                  <label className="form-label fw-bold small text-secondary">Issue Category</label>
-                  <div className="input-group">
-                    <span className="input-group-text bg-light border-0"><Folder size={20} className="text-muted" /></span>
-                    <select 
-                      className="form-select form-select-lg bg-light border-0" 
-                      value={category} 
-                      onChange={(e) => setCategory(e.target.value)}
-                    >
-                      <option>Internet / Wi-Fi</option>
-                      <option>Electricity / Lights</option>
-                      <option>Water / Washroom</option>
-                      <option>Furniture / Maintenance</option>
-                      <option>Other</option>
-                    </select>
+                  <div className="col-md-6">
+                    <label className="form-label fw-bold small text-secondary">Issue Category</label>
+                    <div className="input-group">
+                      <span className="input-group-text bg-light border-0"><Folder size={20} className="text-muted" /></span>
+                      <select className="form-select form-select-lg bg-light border-0" value={category} onChange={(e) => setCategory(e.target.value)}>
+                        <option>Internet / Wi-Fi</option>
+                        <option>Electricity / Lights</option>
+                        <option>Water / Washroom</option>
+                        <option>Furniture / Maintenance</option>
+                        <option>Other</option>
+                      </select>
+                    </div>
                   </div>
-                </div>
 
-                <div className="col-12">
-                  <label className="form-label fw-bold small text-secondary">Problem Details</label>
-                  <div className="input-group">
-                    <span className="input-group-text bg-light border-0"><PenLine size={20} className="text-muted" /></span>
-                    <input 
-                      type="text"
-                      className="form-control form-control-lg bg-light border-0" 
-                      placeholder="e.g. AC in Lab 3 is not cooling..." 
-                      value={description} 
-                      onChange={(e) => setDescription(e.target.value)} 
-                      required 
-                    />
+                  <div className="col-12">
+                    <label className="form-label fw-bold small text-secondary">Problem Details</label>
+                    <div className="input-group">
+                      <span className="input-group-text bg-light border-0"><PenLine size={20} className="text-muted" /></span>
+                      <input type="text" className="form-control form-control-lg bg-light border-0" placeholder="e.g. AC in Lab 3 is not cooling..." value={description} onChange={(e) => setDescription(e.target.value)} required />
+                    </div>
                   </div>
-                </div>
 
-                <div className="col-12 d-flex justify-content-end gap-2 mt-4">
-                  {editId && (
-                    <button type="button" className="btn btn-lg btn-light fw-bold text-muted shadow-sm px-4" onClick={cancelEdit}>
-                      Cancel
+                  <div className="col-12 d-flex justify-content-end gap-2 mt-4">
+                    {editId && (
+                      <button type="button" className="btn btn-lg btn-light fw-bold text-muted shadow-sm px-4" onClick={cancelEdit}>Cancel</button>
+                    )}
+                    <button type="submit" className={`btn btn-lg fw-bold text-white px-5 shadow-sm d-flex align-items-center gap-2 ${editId ? 'btn-primary' : ''}`} disabled={loading} style={{ backgroundColor: editId ? '' : '#0057a8' }}>
+                      {loading ? 'Processing...' : (editId ? 'Update Ticket' : <><Send size={18} /> Submit Ticket</>)}
                     </button>
-                  )}
-                  <button type="submit" className={`btn btn-lg fw-bold text-white px-5 shadow-sm d-flex align-items-center gap-2 ${editId ? 'btn-primary' : ''}`} disabled={loading} style={{ backgroundColor: editId ? '' : '#0057a8' }}>
-                    {loading ? 'Processing...' : (editId ? 'Update Ticket' : <><Send size={18} /> Submit Ticket</>)}
-                  </button>
+                  </div>
                 </div>
-              </div>
-            </form>
+              </form>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* --- History Header --- */}
-        <div className="d-flex align-items-center justify-content-between mb-4">
-          <h4 className="fw-bold text-dark m-0 d-flex align-items-center gap-2"><Clock size={24} /> Your Ticket History</h4>
+        <div className="d-flex align-items-center justify-content-between mb-4 mt-4">
+          <h4 className="fw-bold text-dark m-0 d-flex align-items-center gap-2">
+            <Clock size={24} /> {isAdmin ? "All Community Complaints" : "Your Ticket History"}
+          </h4>
           <span className="badge bg-secondary rounded-pill">{complaints.length} Tickets</span>
         </div>
 
@@ -271,11 +337,16 @@ const Complaints = () => {
                     <h5 className="fw-bold text-dark mb-0">{item.category}</h5>
                   </div>
                   
-                  {/* Campus Badge */}
+                  {/* Campus Badge & User Email (For Admin) */}
                   <div className="mb-3 mt-3">
-                    <span className="badge bg-secondary bg-opacity-10 text-secondary border d-inline-flex align-items-center gap-1">
+                    <span className="badge bg-secondary bg-opacity-10 text-secondary border d-inline-flex align-items-center gap-1 mb-2">
                       <Building size={12} /> {item.campus || 'Not specified'}
                     </span>
+                    {isAdmin && (
+                      <div className="small text-muted d-flex align-items-center gap-1">
+                        <User size={12} /> <span className="fw-bold">{item.user_email}</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Description */}
@@ -285,21 +356,35 @@ const Complaints = () => {
                 </div>
                 
                 {/* Actions Footer */}
-                <div className="card-footer bg-transparent border-top p-3">
+                <div className="card-footer bg-transparent border-top p-3 d-flex flex-column gap-2">
+                  
+                  {/* Admin Approve Button */}
+                  {isAdmin && item.status !== 'Resolved' && (
+                    <button onClick={() => handleResolve(item)} className="btn btn-sm btn-success fw-bold w-100 d-flex justify-content-center align-items-center gap-2">
+                      <CheckCircle size={16} /> Mark as Resolved
+                    </button>
+                  )}
+
                   {item.status === 'Resolved' ? (
-                    <div className="d-flex justify-content-between align-items-center">
+                    <div className="d-flex justify-content-between align-items-center w-100">
                        <small className="text-success fw-bold d-flex align-items-center gap-1"><CheckCircle size={16} /> Issue Resolved</small>
-                       <button onClick={() => handleDelete(item.id)} className="btn btn-sm text-danger opacity-75 hover-opacity-100 p-0 d-flex align-items-center gap-1"><Trash2 size={16} /> Delete</button>
+                       {!isAdmin && (
+                         <button onClick={() => handleDelete(item.id)} className="btn btn-sm text-danger opacity-75 hover-opacity-100 p-0 d-flex align-items-center gap-1"><Trash2 size={16} /> Delete</button>
+                       )}
                     </div>
                   ) : (
-                    <div className="d-flex gap-2">
-                      <button onClick={() => handleEdit(item)} className="btn btn-sm btn-light text-primary border w-50 fw-bold rounded-pill d-flex justify-content-center align-items-center gap-2">
-                        <Edit2 size={16} /> Edit
-                      </button>
-                      <button onClick={() => handleDelete(item.id)} className="btn btn-sm btn-light text-danger border w-50 fw-bold rounded-pill d-flex justify-content-center align-items-center gap-2">
-                        <Trash2 size={16} /> Delete
-                      </button>
-                    </div>
+                    <>
+                      {!isAdmin && (
+                        <div className="d-flex gap-2">
+                          <button onClick={() => handleEdit(item)} className="btn btn-sm btn-light text-primary border w-50 fw-bold rounded-pill d-flex justify-content-center align-items-center gap-2">
+                            <Edit2 size={16} /> Edit
+                          </button>
+                          <button onClick={() => handleDelete(item.id)} className="btn btn-sm btn-light text-danger border w-50 fw-bold rounded-pill d-flex justify-content-center align-items-center gap-2">
+                            <Trash2 size={16} /> Delete
+                          </button>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               </div>

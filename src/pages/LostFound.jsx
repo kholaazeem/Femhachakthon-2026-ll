@@ -13,6 +13,7 @@ const LostFound = () => {
   
   // Current User State
   const [currentUserEmail, setCurrentUserEmail] = useState('');
+  const [isAdmin, setIsAdmin] = useState(false);
 
   // Form States
   const [title, setTitle] = useState('');
@@ -28,7 +29,12 @@ const LostFound = () => {
   useEffect(() => {
     const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (user) setCurrentUserEmail(user.email);
+      if (user) {
+        setCurrentUserEmail(user.email);
+        if (user.email === 'admin@gmail.com') {
+          setIsAdmin(true);
+        }
+      }
     };
     getUser();
   }, []);
@@ -98,11 +104,12 @@ const LostFound = () => {
         
         if (postError) throw postError;
 
-        // 2. 🚀 Save signal in notifications table
+        // 2. 🚀 GLOBAL NOTIFICATION: Sab ko bhejo
         const { error: notifError } = await supabase.from('notifications').insert([{
           title: `New ${type} Alert!`,
           message: `${title} reported by community member.`,
-          user_email: user.email 
+          user_email: user.email,
+          target_email: 'all' // Sab ko jayegi
         }]);
 
         if (notifError) {
@@ -159,11 +166,11 @@ const LostFound = () => {
     }
   };
 
-  // --- Mark Recovered ---
-  const markAsFound = async (id) => {
+  // --- ADMIN ONLY: Mark Recovered & SEND NOTIFICATION ---
+  const markAsFound = async (item) => {
     const result = await Swal.fire({
       title: 'Is this item resolved?',
-      text: "This will mark the item as recovered.",
+      text: "This will mark the item as recovered and notify the user.",
       icon: 'question',
       showCancelButton: true,
       confirmButtonColor: '#198754',
@@ -172,10 +179,25 @@ const LostFound = () => {
     });
 
     if (result.isConfirmed) {
-      const { error } = await supabase.from('lost_found_items').update({ status: 'Recovered' }).eq('id', id);
+      // 1. Status update karein
+      const { error } = await supabase.from('lost_found_items').update({ status: 'Recovered' }).eq('id', item.id).select();
+      
       if (!error) {
-        Swal.fire('Resolved!', 'Item marked as recovered.', 'success');
+        // 2. 🚀 NOTIFICATION BHEJEIN US USER KO JISKI POST THI
+        const targetUser = item.user_email ? item.user_email.trim().toLowerCase() : '';
+        if (targetUser) {
+          await supabase.from('notifications').insert([{
+            title: `Item Recovered! 🎊`,
+            message: `Your posted item "${item.title}" has been marked as recovered by Admin.`,
+            user_email: 'admin@gmail.com',
+            target_email: targetUser
+          }]);
+        }
+
+        Swal.fire('Resolved!', 'Item marked as recovered and user notified.', 'success');
         fetchItems();
+      } else {
+        Swal.fire('Error', error.message, 'error');
       }
     }
   };
@@ -242,7 +264,7 @@ const LostFound = () => {
                       Cancel
                     </button>
                   )}
-                  <button type="submit" className={`btn btn-lg fw-bold text-white shadow d-flex justify-content-center align-items-center gap-2 ${editId ? 'w-50' : 'w-100'}`} disabled={loading} style={{ backgroundColor: editId ? '#0d6efd' : '#0057a8', transition: '0.3s' }}>
+                  <button type="submit" className={`btn btn-lg fw-bold text-white shadow d-flex justify-content-center align-items-center gap-2 ${editId ? 'w-100' : 'w-100'}`} disabled={loading} style={{ backgroundColor: editId ? '#0d6efd' : '#0057a8', transition: '0.3s' }}>
                     {loading ? 'Processing...' : (editId ? 'Update' : <><Send size={18} /> Post Now</>)}
                   </button>
                 </div>
@@ -284,7 +306,6 @@ const LostFound = () => {
             .filter((item) => item.title.toLowerCase().includes(searchTerm.toLowerCase()))
             .map((item) => {
             
-            // Check if current user is the owner of this post
             const isOwner = item.user_email === currentUserEmail;
 
             return (
@@ -341,32 +362,38 @@ const LostFound = () => {
                   </div>
 
                   {/* ACTION BUTTONS LOGIC */}
+                  {/* ADMIN CONTROLS (Mark as Recovered) */}
+                  {isAdmin && item.status === 'Pending' && (
+                    <button className="btn w-100 btn-outline-success fw-bold rounded-pill mb-2 d-flex justify-content-center align-items-center gap-2" onClick={() => markAsFound(item)}>
+                      <Sparkles size={18} /> Mark as Recovered
+                    </button>
+                  )}
+
+                  {isAdmin && item.status === 'Recovered' && (
+                     <button className="btn w-100 btn-success fw-bold rounded-pill disabled border-0 mb-2 d-flex justify-content-center align-items-center gap-2" style={{ opacity: 1 }}>
+                       <CheckCircle size={18} /> Case Closed
+                     </button>
+                  )}
+
+                  {/* USER CONTROLS (Edit / Delete for their own posts ONLY) */}
                   {isOwner ? (
-                    // IF OWNER
-                    <>
-                      {item.status === 'Pending' ? (
-                        <button className="btn w-100 btn-outline-success fw-bold rounded-pill mb-2 d-flex justify-content-center align-items-center gap-2" onClick={() => markAsFound(item.id)}>
-                          <Sparkles size={18} /> Mark as Recovered
-                        </button>
-                      ) : (
-                        <button className="btn w-100 btn-success fw-bold rounded-pill disabled border-0 mb-2 d-flex justify-content-center align-items-center gap-2" style={{ opacity: 1 }}>
-                          <CheckCircle size={18} /> Case Closed
-                        </button>
-                      )}
-                      <div className="d-flex gap-2">
+                    <div className="d-flex gap-2">
+                      {item.status !== 'Recovered' && (
                         <button onClick={() => handleEdit(item)} className="btn btn-sm btn-light text-primary border w-50 rounded-pill fw-bold d-flex justify-content-center align-items-center gap-2">
                           <Edit2 size={16} /> Edit
                         </button>
-                        <button onClick={() => handleDelete(item.id)} className="btn btn-sm btn-light text-danger border w-50 rounded-pill fw-bold d-flex justify-content-center align-items-center gap-2">
-                          <Trash2 size={16} /> Delete
-                        </button>
-                      </div>
-                    </>
+                      )}
+                      <button onClick={() => handleDelete(item.id)} className={`btn btn-sm btn-light text-danger border rounded-pill fw-bold d-flex justify-content-center align-items-center gap-2 ${item.status === 'Recovered' ? 'w-100' : 'w-50'}`}>
+                        <Trash2 size={16} /> Delete
+                      </button>
+                    </div>
                   ) : (
-                    // IF NOT OWNER
-                    <button className={`btn w-100 fw-bold rounded-pill disabled border-0 d-flex justify-content-center align-items-center gap-2 ${item.status === 'Recovered' ? 'btn-success text-white' : 'btn-light text-dark'}`} style={{ opacity: 1 }}>
-                      {item.status === 'Recovered' ? <><CheckCircle size={18} /> Case Closed</> : <><Clock size={18} /> Pending Recovery</>}
-                    </button>
+                     // IF NOT OWNER & NOT ADMIN
+                     !isAdmin && (
+                        <button className={`btn w-100 fw-bold rounded-pill disabled border-0 d-flex justify-content-center align-items-center gap-2 ${item.status === 'Recovered' ? 'btn-success text-white' : 'btn-light text-dark'}`} style={{ opacity: 1 }}>
+                          {item.status === 'Recovered' ? <><CheckCircle size={18} /> Case Closed</> : <><Clock size={18} /> Pending Recovery</>}
+                        </button>
+                     )
                   )}
                   
                 </div>

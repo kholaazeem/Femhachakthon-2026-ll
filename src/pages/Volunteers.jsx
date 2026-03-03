@@ -82,14 +82,25 @@ const Volunteers = () => {
         if (error) throw error;
         Swal.fire({ icon: 'success', title: 'Updated!', text: 'Registration details updated.', confirmButtonColor: '#198754' });
       } else {
-        // Insert Logic (Status defaults to Pending)
+        // Insert Logic
         const { error } = await supabase.from('volunteers').insert([{
           name, phone, roll_no: rollNo, event, duration,
           user_email: user.email,
           image_url: uploadedImageUrl,
-          status: 'Pending' // Admin approval required
+          status: 'Pending' 
         }]);
         if (error) throw error;
+
+        // 🚀 SMART NOTIFICATION: Sirf Admin ko Bhejo
+        const { error: notifError } = await supabase.from('notifications').insert([{
+          title: `New Volunteer: ${name}`,
+          message: `${user.email} applied for ${event}.`,
+          user_email: user.email,
+          target_email: 'admin@gmail.com' // 🎯 Target Admin
+        }]);
+        
+        if (notifError) console.error("Notification Error:", notifError);
+
         Swal.fire({ icon: 'success', title: 'Registration Submitted!', text: 'Please wait for Admin approval to get your ID Card.', confirmButtonColor: '#198754' });
       }
 
@@ -131,10 +142,33 @@ const Volunteers = () => {
     }
   };
 
-  const handleApprove = async (id) => {
-    const { error } = await supabase.from('volunteers').update({ status: 'Approved' }).eq('id', id);
+  // 🚀 APPROVE HANDLER WITH NOTIFICATION & LOGS
+  const handleApprove = async (vol) => {
+    const { error } = await supabase.from('volunteers').update({ status: 'Approved' }).eq('id', vol.id);
+    
     if (!error) {
-      Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Approved successfully', showConfirmButton: false, timer: 2000 });
+      console.log("✅ Volunteer marked as approved in DB.");
+
+      // Email clean up for exact match
+      const targetUser = vol.user_email ? vol.user_email.trim().toLowerCase() : '';
+
+      // 🚀 SMART NOTIFICATION: Sirf us Volunteer ko bhejo
+      const { error: notifError } = await supabase.from('notifications').insert([{
+        title: `Volunteer ID Approved! 🎉`,
+        message: `Admin has approved your request for ${vol.event}.`,
+        user_email: 'admin@gmail.com',
+        target_email: targetUser // 🎯 Target Volunteer
+      }]);
+      
+      // 🔴 AGAR NOTIFICATION FAIL HUI TOH ADMIN KO SCREEN PAR ERROR DIKHAO
+      if (notifError) {
+        Swal.fire('Notification Failed!', `Error: ${notifError.message}`, 'error');
+        console.error("❌ NOTIFICATION SENDING FAILED:", notifError);
+      } else {
+        console.log("✅ NOTIFICATION SUCCESSFULLY SENT TO:", targetUser);
+        Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Approved successfully', showConfirmButton: false, timer: 2000 });
+      }
+      
       fetchVolunteers();
     }
   };
@@ -460,7 +494,7 @@ const Volunteers = () => {
                         
                         {/* Admin Controls */}
                         {isAdmin && vol.status !== 'Approved' && (
-                          <button onClick={() => handleApprove(vol.id)} className="btn btn-sm btn-success fw-bold d-flex justify-content-center align-items-center gap-1 w-100">
+                          <button onClick={() => handleApprove(vol)} className="btn btn-sm btn-success fw-bold d-flex justify-content-center align-items-center gap-1 w-100">
                             <CheckCircle size={16} /> Approve Volunteer
                           </button>
                         )}
