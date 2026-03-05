@@ -3,6 +3,7 @@ import { supabase } from '../config/supabaseClient';
 import Swal from 'sweetalert2';
 import { useNavigate } from 'react-router-dom';
 import { Users, Heart, Edit2, Clock, Phone, User as UserIcon, Trash2, FileText, CheckCircle, Hourglass, Leaf, Printer, XCircle } from 'lucide-react';
+import { deleteRecord , resolveAndNotify} from '../utils/sharedActions';
 
 const Volunteers = () => {
   const navigate = useNavigate();
@@ -132,46 +133,21 @@ const Volunteers = () => {
   };
 
   const handleDelete = async (id) => {
-    const result = await Swal.fire({ title: 'Delete Registration?', text: "You won't be able to revert this!", icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'Yes, delete it!' });
-    if (result.isConfirmed) {
-      const { error } = await supabase.from('volunteers').delete().eq('id', id);
-      if (!error) {
-        Swal.fire('Deleted!', 'Your registration has been removed.', 'success');
-        fetchVolunteers();
-      }
-    }
+   deleteRecord('volunteers', id , fetchVolunteers)
   };
 
-  // 🚀 APPROVE HANDLER WITH NOTIFICATION & LOGS
+  // APPROVE HANDLER WITH NOTIFICATION & LOGS
   const handleApprove = async (vol) => {
-    const { error } = await supabase.from('volunteers').update({ status: 'Approved' }).eq('id', vol.id);
-    
-    if (!error) {
-      console.log("✅ Volunteer marked as approved in DB.");
-
-      // Email clean up for exact match
-      const targetUser = vol.user_email ? vol.user_email.trim().toLowerCase() : '';
-
-      // 🚀 SMART NOTIFICATION: Sirf us Volunteer ko bhejo
-      const { error: notifError } = await supabase.from('notifications').insert([{
-        title: `Volunteer ID Approved! 🎉`,
-        message: `Admin has approved your request for ${vol.event}.`,
-        user_email: 'admin@gmail.com',
-        target_email: targetUser // 🎯 Target Volunteer
-      }]);
-      
-      // 🔴 AGAR NOTIFICATION FAIL HUI TOH ADMIN KO SCREEN PAR ERROR DIKHAO
-      if (notifError) {
-        Swal.fire('Notification Failed!', `Error: ${notifError.message}`, 'error');
-        console.error("❌ NOTIFICATION SENDING FAILED:", notifError);
-      } else {
-        console.log("✅ NOTIFICATION SUCCESSFULLY SENT TO:", targetUser);
-        Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Approved successfully', showConfirmButton: false, timer: 2000 });
-      }
-      
-      fetchVolunteers();
-    }
-  };
+    resolveAndNotify({
+     tableName: 'volunteers',
+    itemId: vol.id ,
+    newStatus: 'Approved' ,
+    userEmail: vol.user_email,
+    notifTitle: 'Volunteer ID Approved!',
+    notifMessage: ` Admin has approved your request for${vol.event} .`,
+    onSuccessCallback:fetchVolunteers
+    })
+  }
 
   // --- Generate & Print Two-Sided ID Card ---
   const downloadIDCard = (vol) => {

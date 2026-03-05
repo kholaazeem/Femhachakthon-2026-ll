@@ -21,7 +21,7 @@ const Auth = () => {
 
     try {
       if (isLogin) {
-        // --- LOGIN LOGIC ---
+      
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
         
@@ -33,10 +33,9 @@ const Auth = () => {
           timer: 1500
         });
 
-      } else {
-        // --- SIGNUP LOGIC ---
-        // Profile pic logic removed. Register User with Metadata (Name & Phone only)
-        const { error } = await supabase.auth.signUp({
+   } else {
+      
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
@@ -46,7 +45,18 @@ const Auth = () => {
             },
           },
         });
+        
         if (error) throw error;
+
+        if (data.user) {
+          await supabase.from('user').insert([ 
+            {
+              id: data.user.id,     
+              email: email,         
+              name: fullName        
+            }
+          ]);
+        }
 
         Swal.fire({
           icon: 'success',

@@ -3,7 +3,9 @@ import { supabase } from '../config/supabaseClient';
 import Swal from 'sweetalert2';
 import { useNavigate } from 'react-router-dom';
 
-import { ShieldCheck, Users, Search, Ticket, Mail, Trash2, X, CheckCircle, Megaphone, Building, Clock, Phone, MapPin } from 'lucide-react';
+// 🌟 NOTE: Yahan 'User' icon add kiya hai
+import { ShieldCheck, Users, Search, Ticket, Mail, Trash2, X, CheckCircle, Megaphone, Building, Clock, Phone, MapPin, User , Calendar} from 'lucide-react';
+import { resolveAndNotify , deleteRecord} from '../utils/sharedActions';
 
 const Admin = () => {
   const navigate = useNavigate();
@@ -13,9 +15,10 @@ const Admin = () => {
   // Data States
   const [volunteers, setVolunteers] = useState([]);
   const [complaints, setComplaints] = useState([]);
-  const [items, setItems] = useState([]);
+  const [items, setItems] = useState([]); 
   const [notices, setNotices] = useState([]); 
   const [messages, setMessages] = useState([]);
+  const [registeredUsers, setRegisteredUsers] = useState([]); // 🌟 Naya State Users ke liye
 
   // Form State
   const [noticeTitle, setNoticeTitle] = useState('');
@@ -42,19 +45,25 @@ const Admin = () => {
 
   const fetchData = async () => {
     setLoading(true);
-    const [v, c, i, n, m] = await Promise.all([
+    // 🌟 Promise.all mein 'users' table ko add kar diya (Agar aapke table ka naam kuch aur hai toh yahan change karein)
+    const [v, c, i, n, m, u] = await Promise.all([
+      
       supabase.from('volunteers').select('*').order('created_at', { ascending: false }),
       supabase.from('complaints').select('*').order('created_at', { ascending: false }),
       supabase.from('lost_found_items').select('*').order('created_at', { ascending: false }),
       supabase.from('announcements').select('*').order('created_at', { ascending: false }),
-      supabase.from('contact_messages').select('*').order('created_at', { ascending: false })
+      supabase.from('contact_messages').select('*').order('created_at', { ascending: false }),
+      supabase.from('user').select('*').order('created_at', { ascending: false }) 
+      
     ]);
 
+    console.log("Supabase se yeh user data aya:", u.data); // 👈 Yeh line add karein check karne ke liye
     setVolunteers(v.data || []);
     setComplaints(c.data || []);
     setItems(i.data || []);
     setNotices(n.data || []);
     setMessages(m.data || []);
+    setRegisteredUsers(u.data || []); // 🌟 Users ka data set kiya
     setLoading(false);
   };
 
@@ -76,93 +85,49 @@ const Admin = () => {
     }
   };
 
-  const deleteItem = async (table, id) => {
-    const result = await Swal.fire({
-      title: 'Are you sure?',
-      text: "You won't be able to revert this!",
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonColor: '#d33',
-      cancelButtonColor: '#3085d6',
-      confirmButtonText: 'Yes, delete it!'
+  // Delete 
+  const deleteItem = (table , id)=>{
+    deleteRecord(table, id, fetchData);
+  };
+
+  // Resolve Complaint
+  const updateStatus = (complaintItem, newStatus)=>{
+    resolveAndNotify({
+      tableName: 'complaints',
+      itemId: complaintItem.id ,
+      newStatus: newStatus ,
+      userEmail: complaintItem.user_email,
+      notifTitle: 'Complaint Resolved!',
+      notifMessage: `Your issue regarding ${complaintItem.category} has been resolved.`,
+      onSuccessCallback: fetchData
     });
+  }
 
-    if (result.isConfirmed) {
-      await supabase.from(table).delete().eq('id', id);
-      Swal.fire('Deleted!', 'Record has been deleted.', 'success');
-      fetchData();
-    }
-  };
+  // Approve Volunteer
+  const approveVolunteer = (volItem) =>{
+    resolveAndNotify({
+      tableName: 'volunteers',
+      itemId: volItem.id ,
+      newStatus: 'Approved' ,
+      userEmail: volItem.user_email,
+      notifTitle: 'Volunteer ID Approved!',
+      notifMessage: ` Admin has approved your request for ${volItem.event}.`,
+      onSuccessCallback: fetchData
+    })
+  }
 
-  // 🚀 ADMIN PANEL: Resolve Complaint & Send Notification
-  const updateStatus = async (complaintItem, newStatus) => {
-    const { error } = await supabase.from('complaints').update({ status: newStatus }).eq('id', complaintItem.id).select();
-    
-    if (!error) {
-      // Notification Logic
-      if (newStatus === 'Resolved') {
-        const targetUser = complaintItem.user_email ? complaintItem.user_email.trim().toLowerCase() : '';
-        if (targetUser) {
-          await supabase.from('notifications').insert([{
-            title: `Complaint Resolved! ✅`,
-            message: `Your issue regarding ${complaintItem.category} has been resolved by Admin.`,
-            user_email: 'admin@gmail.com',
-            target_email: targetUser
-          }]);
-        }
-      }
-
-      fetchData();
-      const toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000 });
-      toast.fire({ icon: 'success', title: `Status updated to ${newStatus}` });
-    }
-  };
-
-  // 🚀 ADMIN PANEL: Approve Volunteer & Send Notification
-  const approveVolunteer = async (volItem) => {
-    const { error } = await supabase.from('volunteers').update({ status: 'Approved' }).eq('id', volItem.id).select();
-    
-    if (!error) {
-      // Notification Logic
-      const targetUser = volItem.user_email ? volItem.user_email.trim().toLowerCase() : '';
-      if (targetUser) {
-        await supabase.from('notifications').insert([{
-          title: `Volunteer ID Approved! 🎉`,
-          message: `Admin has approved your request for ${volItem.event}.`,
-          user_email: 'admin@gmail.com',
-          target_email: targetUser
-        }]);
-      }
-
-      fetchData();
-      const toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000 });
-      toast.fire({ icon: 'success', title: `Volunteer Approved!` });
-    }
-  };
-
-  // 🚀 ADMIN PANEL: Resolve Lost & Found Item & Send Notification
-  const resolveLostFoundItem = async (lfItem) => {
-    const { error } = await supabase.from('lost_found_items').update({ status: 'Recovered' }).eq('id', lfItem.id).select();
-    
-    if (!error) {
-      // Notification Logic
-      const targetUser = lfItem.user_email ? lfItem.user_email.trim().toLowerCase() : '';
-      if (targetUser) {
-        await supabase.from('notifications').insert([{
-          title: `Item Recovered! 🎊`,
-          message: `Your posted item "${lfItem.title}" has been marked as recovered by Admin.`,
-          user_email: 'admin@gmail.com',
-          target_email: targetUser
-        }]);
-      }
-
-      fetchData();
-      const toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000 });
-      toast.fire({ icon: 'success', title: `Item marked as Recovered!` });
-    } else {
-      Swal.fire('Error', error.message, 'error');
-    }
-  };
+  // Resolve Lost & Found
+  const resolveLostFoundItem = (lfItem)=>{
+    resolveAndNotify({
+      tableName: 'lost_found_items',
+      itemId: lfItem.id ,
+      newStatus: 'Recovered' ,
+      userEmail: lfItem.user_email,
+      notifTitle: 'Item Recovered!',
+      notifMessage: `Your posted item ${lfItem.title} has been marked as recovered by Admin.`,
+      onSuccessCallback: fetchData
+    });
+  }
 
   if (loading) return <div className="text-center mt-5"><div className="spinner-border text-primary"></div></div>;
 
@@ -185,50 +150,36 @@ const Admin = () => {
 
       <div className="container" style={{ marginTop: '-40px' }}>
         
-        {/* --- Stats Overview Cards --- */}
+        {/* --- Stats Overview Cards (Ab yahan 5 cards aayenge) --- */}
         <div className="row g-3 mb-5">
-          <div className="col-md-3">
-            <div className="card border-0 shadow-sm p-3 d-flex flex-row align-items-center justify-content-between bg-white rounded-4">
-              <div>
-                <h3 className="fw-bold text-dark mb-0">{volunteers.length}</h3>
-                <small className="text-muted">Volunteers</small>
-              </div>
-              <div className="bg-success bg-opacity-10 text-success p-3 rounded-circle">
-                <Users size={28} />
-              </div>
+          <div className="col">
+            <div className="card border-0 shadow-sm p-3 d-flex flex-row align-items-center justify-content-between bg-white rounded-4 h-100">
+              <div><h3 className="fw-bold text-dark mb-0">{registeredUsers.length}</h3><small className="text-muted">Users</small></div>
+              <div className="bg-secondary bg-opacity-10 text-secondary p-3 rounded-circle"><User size={24} /></div>
             </div>
           </div>
-          <div className="col-md-3">
-            <div className="card border-0 shadow-sm p-3 d-flex flex-row align-items-center justify-content-between bg-white rounded-4">
-              <div>
-                <h3 className="fw-bold text-dark mb-0">{items.length}</h3>
-                <small className="text-muted">Lost Items</small>
-              </div>
-              <div className="bg-danger bg-opacity-10 text-danger p-3 rounded-circle">
-                <Search size={28} />
-              </div>
+          <div className="col">
+            <div className="card border-0 shadow-sm p-3 d-flex flex-row align-items-center justify-content-between bg-white rounded-4 h-100">
+              <div><h3 className="fw-bold text-dark mb-0">{volunteers.length}</h3><small className="text-muted">Volunteers</small></div>
+              <div className="bg-success bg-opacity-10 text-success p-3 rounded-circle"><Users size={24} /></div>
             </div>
           </div>
-          <div className="col-md-3">
-            <div className="card border-0 shadow-sm p-3 d-flex flex-row align-items-center justify-content-between bg-white rounded-4">
-              <div>
-                <h3 className="fw-bold text-dark mb-0">{complaints.length}</h3>
-                <small className="text-muted">Tickets</small>
-              </div>
-              <div className="bg-warning bg-opacity-10 text-warning p-3 rounded-circle">
-                <Ticket size={28} />
-              </div>
+          <div className="col">
+            <div className="card border-0 shadow-sm p-3 d-flex flex-row align-items-center justify-content-between bg-white rounded-4 h-100">
+              <div><h3 className="fw-bold text-dark mb-0">{items.length}</h3><small className="text-muted">Lost Items</small></div>
+              <div className="bg-danger bg-opacity-10 text-danger p-3 rounded-circle"><Search size={24} /></div>
             </div>
           </div>
-          <div className="col-md-3">
-            <div className="card border-0 shadow-sm p-3 d-flex flex-row align-items-center justify-content-between bg-white rounded-4">
-              <div>
-                <h3 className="fw-bold text-dark mb-0">{messages.length}</h3>
-                <small className="text-muted">Messages</small>
-              </div>
-              <div className="bg-primary bg-opacity-10 text-primary p-3 rounded-circle">
-                <Mail size={28} />
-              </div>
+          <div className="col">
+            <div className="card border-0 shadow-sm p-3 d-flex flex-row align-items-center justify-content-between bg-white rounded-4 h-100">
+              <div><h3 className="fw-bold text-dark mb-0">{complaints.length}</h3><small className="text-muted">Tickets</small></div>
+              <div className="bg-warning bg-opacity-10 text-warning p-3 rounded-circle"><Ticket size={24} /></div>
+            </div>
+          </div>
+          <div className="col">
+            <div className="card border-0 shadow-sm p-3 d-flex flex-row align-items-center justify-content-between bg-white rounded-4 h-100">
+              <div><h3 className="fw-bold text-dark mb-0">{messages.length}</h3><small className="text-muted">Messages</small></div>
+              <div className="bg-primary bg-opacity-10 text-primary p-3 rounded-circle"><Mail size={24} /></div>
             </div>
           </div>
         </div>
@@ -236,6 +187,7 @@ const Admin = () => {
         {/* --- Navigation Tabs --- */}
         <div className="d-flex overflow-auto gap-2 mb-4 pb-2">
           {[
+            { id: 'user', label: 'Registered Users', icon: <User size={18}/> }, // 🌟 Naya Tab Add Kiya
             { id: 'volunteers', label: 'Volunteers', icon: <Users size={18}/> },
             { id: 'complaints', label: 'Complaints', icon: <Ticket size={18}/> },
             { id: 'items', label: 'Lost & Found', icon: <Search size={18}/> },
@@ -245,7 +197,7 @@ const Admin = () => {
             <button 
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`btn px-4 py-2 rounded-pill fw-bold d-flex align-items-center gap-2 ${activeTab === tab.id ? 'btn-dark shadow' : 'btn-white bg-white text-muted border'}`}
+              className={`btn px-4 py-2 rounded-pill fw-bold d-flex align-items-center gap-2 text-nowrap ${activeTab === tab.id ? 'btn-dark shadow' : 'btn-white bg-white text-muted border'}`}
             >
               {tab.icon} {tab.label}
             </button>
@@ -254,6 +206,38 @@ const Admin = () => {
 
         {/* --- CONTENT AREA --- */}
         <div className="bg-white p-4 rounded-4 shadow-sm border-0 min-vh-50">
+
+          {/* 🌟 0. USERS TAB (Naya Section) */}
+          {activeTab === 'user' && (
+            <div>
+              <h4 className="fw-bold mb-4 d-flex align-items-center gap-2"><User size={24} className="text-secondary"/> Community Members</h4>
+              <div className="table-responsive">
+                <table className="table table-hover align-middle">
+                  <thead className="table-light"><tr><th>Join Date</th><th>Name / Details</th><th>Email Address</th><th>Actions</th></tr></thead>
+                  <tbody>
+                    {registeredUsers.map(u => (
+                      <tr key={u.id}>
+                        <td className="small text-muted"><Calendar size={14} className="me-1"/> {new Date(u.created_at).toLocaleDateString()}</td>
+                        <td>
+                          <div className="fw-bold text-dark">{u.name || 'Student'}</div>
+                        </td>
+                        <td className="text-primary font-monospace small">{u.email}</td>
+                        <td>
+                          {/* Note: Delete karne se siraf is table se hatega, Supabase Auth se nahi jab tak backend set na ho */}
+                          <button className="btn btn-sm btn-outline-danger p-1 border-0" onClick={() => deleteItem('user', u.id)} title="Remove Data">
+                            <Trash2 size={18}/>
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                    {registeredUsers.length === 0 && (
+                      <tr><td colSpan="4" className="text-center text-muted py-4">No user data found in public table.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
           {/* 1. VOLUNTEERS TAB */}
           {activeTab === 'volunteers' && (

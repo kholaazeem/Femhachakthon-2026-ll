@@ -3,7 +3,7 @@ import { supabase } from '../config/supabaseClient';
 import Swal from 'sweetalert2';
 import { useNavigate } from 'react-router-dom';
 import { Wrench, Edit2, AlertCircle, Building, Folder, PenLine, Send, Clock, Calendar, Trash2, CheckCircle, Wifi, Zap, Droplet, Armchair, FileText, User } from 'lucide-react';
-
+import { deleteRecord , resolveAndNotify } from '../utils/sharedActions';
 const Complaints = () => {
   const navigate = useNavigate();
   const [complaints, setComplaints] = useState([]);
@@ -119,84 +119,21 @@ const Complaints = () => {
 
   // --- Delete Action ---
   const handleDelete = async (id) => {
-    const result = await Swal.fire({
-      title: 'Delete Ticket?',
-      text: "Are you sure you want to remove this complaint?",
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonColor: '#d33',
-      cancelButtonColor: '#6c757d',
-      confirmButtonText: 'Yes, Delete!'
-    });
+    deleteRecord('complaints', id , fetchComplaints)
+  }
 
-    if (result.isConfirmed) {
-      const { error } = await supabase.from('complaints').delete().eq('id', id);
-      if (!error) {
-        Swal.fire('Deleted!', 'Your ticket has been removed.', 'success');
-        fetchComplaints();
-      }
-    }
-  };
 
-  // 🚀 ADMIN ACTION: Mark as Resolved & Send Notification (UPDATED WITH LOGS)
-  // 🚀 ADMIN ACTION: Mark as Resolved & Send Notification (REVERSED ORDER)
+  //  ADMIN ACTION: Mark as Resolved & Send Notification (REVERSED ORDER)
   const handleResolve = async (item) => {
-    try {
-      console.log("1. Admin ne Resolve button click kiya!");
-
-      // 1. Email nikal kar clean karo
-      const targetUser = item.user_email ? item.user_email.trim().toLowerCase() : '';
-      console.log("2. Target Email (Jisko Notif jayegi):", targetUser);
-
-      if (!targetUser) {
-        Swal.fire('Error', 'Is complaint mein user ki email nahi hai!', 'error');
-        return;
-      }
-
-      // ---------------------------------------------------------
-      // 🌟 STEP 1: PEHLE NOTIFICATION INSERT KAREIN
-      // ---------------------------------------------------------
-      console.log("3. Notification insert ho rahi hai...");
-      const { error: notifError } = await supabase
-        .from('notifications')
-        .insert([{
-          title: `Complaint Resolved! ✅`,
-          message: `Your issue regarding ${item.category} has been resolved by Admin.`,
-          user_email: 'admin@gmail.com', // Sender
-          target_email: targetUser       // Receiver
-        }]);
-
-      if (notifError) {
-        console.error("❌ Notification Table Error:", notifError);
-        Swal.fire('Error', `Notification insert fail: ${notifError.message}`, 'error');
-        return; // Agar error aya toh code yahi rok do
-      }
-      console.log("4. ✅ NOTIFICATION INSERT SUCCESSFUL!");
-
-      // ---------------------------------------------------------
-      // 🌟 STEP 2: USKE BAAD COMPLAINT KA STATUS UPDATE KAREIN
-      // ---------------------------------------------------------
-      console.log("5. Ab complaint ka status 'Resolved' kar rahe hain...");
-      const { error: updateError } = await supabase
-        .from('complaints')
-        .update({ status: 'Resolved' })
-        .eq('id', item.id);
-
-      if (updateError) {
-        console.error("❌ Complaint Update Error:", updateError);
-        Swal.fire('Error', `Status update fail: ${updateError.message}`, 'error');
-        return;
-      }
-      console.log("6. ✅ COMPLAINT UPDATE SUCCESSFUL!");
-
-      // Sab theek ho gaya toh data refresh kardo aur popup dikhao
-      fetchComplaints();
-      Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Resolved & Notified!', showConfirmButton: false, timer: 2500 });
-
-    } catch (err) {
-      console.error("❌ System Error:", err);
-      Swal.fire('Error', 'Koi anjana masla aa gaya!', 'error');
-    }
+    resolveAndNotify({
+      tableName: 'complaints',
+      itemId: item.id,
+      newStatus: "Resolved",
+      userEmail: item.user_email,
+      notifTitle: "Complaint Resolved",
+      notifMessage: `Your issue regarding ${item.category} has been resolved by Admin.`,
+      onSuccessCallback: fetchComplaints
+        });
   };
 
   // Helper for Status Badge

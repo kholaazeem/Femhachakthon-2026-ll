@@ -3,6 +3,7 @@ import { supabase } from '../config/supabaseClient';
 import Swal from 'sweetalert2';
 import { useNavigate } from 'react-router-dom';
 import { Search, Plus, Edit2, Send, Package, CheckCircle, Phone, Sparkles, Trash2, Clock, Inbox } from 'lucide-react';
+import { deleteRecord, resolveAndNotify } from '../utils/sharedActions';
 
 const LostFound = () => {
   const navigate = useNavigate();
@@ -147,60 +148,21 @@ const LostFound = () => {
 
   // --- Delete Action ---
   const handleDelete = async (id) => {
-    const result = await Swal.fire({
-      title: 'Delete Post?',
-      text: "This action cannot be undone.",
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonColor: '#d33',
-      cancelButtonColor: '#6c757d',
-      confirmButtonText: 'Yes, Delete!'
-    });
-
-    if (result.isConfirmed) {
-      const { error } = await supabase.from('lost_found_items').delete().eq('id', id);
-      if (!error) {
-        Swal.fire('Deleted!', 'Your post has been removed.', 'success');
-        fetchItems();
-      }
-    }
-  };
+    deleteRecord('lost_found_items', id , fetchItems)
+  }
 
   // --- ADMIN ONLY: Mark Recovered & SEND NOTIFICATION ---
   const markAsFound = async (item) => {
-    const result = await Swal.fire({
-      title: 'Is this item resolved?',
-      text: "This will mark the item as recovered and notify the user.",
-      icon: 'question',
-      showCancelButton: true,
-      confirmButtonColor: '#198754',
-      cancelButtonColor: '#d33',
-      confirmButtonText: 'Yes, Resolved!'
-    });
-
-    if (result.isConfirmed) {
-      // 1. Status update karein
-      const { error } = await supabase.from('lost_found_items').update({ status: 'Recovered' }).eq('id', item.id).select();
-      
-      if (!error) {
-        // 2. 🚀 NOTIFICATION BHEJEIN US USER KO JISKI POST THI
-        const targetUser = item.user_email ? item.user_email.trim().toLowerCase() : '';
-        if (targetUser) {
-          await supabase.from('notifications').insert([{
-            title: `Item Recovered! 🎊`,
-            message: `Your posted item "${item.title}" has been marked as recovered by Admin.`,
-            user_email: 'admin@gmail.com',
-            target_email: targetUser
-          }]);
-        }
-
-        Swal.fire('Resolved!', 'Item marked as recovered and user notified.', 'success');
-        fetchItems();
-      } else {
-        Swal.fire('Error', error.message, 'error');
-      }
-    }
-  };
+    resolveAndNotify({
+    tableName: 'lost_found_items',
+    itemId: item.id ,
+    newStatus: 'Recovered' ,
+    userEmail: item.user_email,
+    notifTitle: 'Item Recovered!',
+    notifMessage: `Your posted item ${item.title} has been marked as recovered by Admin.`,
+    onSuccessCallback:fetchItems
+    })
+  }
 
   return (
     <div className="min-vh-100" style={{ backgroundColor: '#ebf2f7', paddingBottom: '50px' }}>
